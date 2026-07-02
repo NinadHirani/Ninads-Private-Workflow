@@ -1,0 +1,18 @@
+{
+  "name": "07_Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/logger.py --topic \"{{ $json.topic }}\" --status \"{{ $json.status }}\" --yt_id \"{{ $json.video_id }}\" --yt_url \"{{ $json.youtube_url }}\""
+      },
+      "name": "Run Logger Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    }
+  ],
+  "connections": {}
+}

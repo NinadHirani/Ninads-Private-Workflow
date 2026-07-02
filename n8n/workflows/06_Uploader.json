@@ -1,0 +1,18 @@
+{
+  "name": "06_Uploader",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/uploader.py --file \"{{ $json.file_path }}\" --title \"{{ $json.title }}\" --description \"{{ $json.description }}\""
+      },
+      "name": "Run Uploader Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    }
+  ],
+  "connections": {}
+}

@@ -1,0 +1,209 @@
+{
+  "name": "AI_Shorts_Factory_Master",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Daily)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/content_finder.py --topic \"nature\""
+      },
+      "name": "01_Content_Finder",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/downloader.py --url \"{{ JSON.parse($json.stdout).candidate.video_url }}\""
+      },
+      "name": "02_Downloader",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/validator.py --file \"{{ JSON.parse($json.stdout).file_path }}\""
+      },
+      "name": "03_Validator",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/editor.py --input \"{{ JSON.parse($node['02_Downloader'].json.stdout).file_path }}\""
+      },
+      "name": "04_Editor",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/metadata_generator.py --topic \"nature\""
+      },
+      "name": "05_Metadata",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/uploader.py --file \"{{ JSON.parse($node['04_Editor'].json.stdout).file_path }}\" --title \"{{ JSON.parse($node['05_Metadata'].json.stdout).title }}\" --description \"{{ JSON.parse($node['05_Metadata'].json.stdout).description }}\""
+      },
+      "name": "06_Uploader",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/logger.py --topic \"nature\" --status \"{{ JSON.parse($json.stdout).status }}\" --yt_id \"{{ JSON.parse($json.stdout).video_id }}\" --yt_url \"{{ JSON.parse($json.stdout).youtube_url }}\""
+      },
+      "name": "07_Logger",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/archive.py --raw \"{{ JSON.parse($node['02_Downloader'].json.stdout).file_path }}\" --edited \"{{ JSON.parse($node['04_Editor'].json.stdout).file_path }}\""
+      },
+      "name": "08_Archiver",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily)": {
+      "main": [
+        [
+          {
+            "node": "01_Content_Finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01_Content_Finder": {
+      "main": [
+        [
+          {
+            "node": "02_Downloader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02_Downloader": {
+      "main": [
+        [
+          {
+            "node": "03_Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03_Validator": {
+      "main": [
+        [
+          {
+            "node": "04_Editor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04_Editor": {
+      "main": [
+        [
+          {
+            "node": "05_Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05_Metadata": {
+      "main": [
+        [
+          {
+            "node": "06_Uploader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06_Uploader": {
+      "main": [
+        [
+          {
+            "node": "07_Logger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07_Logger": {
+      "main": [
+        [
+          {
+            "node": "08_Archiver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

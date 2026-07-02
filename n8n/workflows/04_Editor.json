@@ -1,0 +1,18 @@
+{
+  "name": "04_Editor",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/editor.py --input \"{{ $json.file_path }}\" --duration 30"
+      },
+      "name": "Run Editor Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    }
+  ],
+  "connections": {}
+}

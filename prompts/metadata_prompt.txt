@@ -1,0 +1,12 @@
+Generate engaging SEO metadata for a YouTube Short based on topic: "{topic}".
+
+Title Constraints:
+- Less than 100 characters
+- Clear, catchy, no misleading clickbait
+
+Description Constraints:
+- Concise summary (< 5000 characters)
+- Include call to action and relevant topic details
+
+Hashtags Constraints:
+- Include #shorts #shortsvideo and top 3 topic hashtags

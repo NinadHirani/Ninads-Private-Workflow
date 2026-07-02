@@ -1,0 +1,18 @@
+{
+  "name": "02_Downloader",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/downloader.py --url \"{{ $json.candidate.video_url }}\""
+      },
+      "name": "Run Downloader Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    }
+  ],
+  "connections": {}
+}

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: ai_shorts_n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      - YOUTUBE_REFRESH_TOKEN=${YOUTUBE_REFRESH_TOKEN}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./:/files
+    networks:
+      - ai_shorts_network
+
+  python_worker:
+    build:
+      context: .
+      dockerfile: docker/python/Dockerfile
+    container_name: ai_shorts_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - ai_shorts_network
+
+volumes:
+  n8n_data:
+
+networks:
+  ai_shorts_network:
+    driver: bridge

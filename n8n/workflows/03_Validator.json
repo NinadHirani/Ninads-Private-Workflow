@@ -1,0 +1,18 @@
+{
+  "name": "03_Validator",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /app/scripts/validator.py --file \"{{ $json.file_path }}\""
+      },
+      "name": "Run Validator Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    }
+  ],
+  "connections": {}
+}
