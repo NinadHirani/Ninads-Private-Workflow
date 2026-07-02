@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 # Install FFmpeg and basic utilities
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
