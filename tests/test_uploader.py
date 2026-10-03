@@ -1,22 +1,40 @@
-import sys
-import os
-import tempfile
-import unittest
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import json
 
-from scripts.uploader import upload_to_youtube
+from scripts.uploader import load_metadata, upload_to_youtube
 
-class TestUploader(unittest.TestCase):
-    def test_upload_to_youtube_mock(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            video_file = os.path.join(tmp_dir, "short.mp4")
-            with open(video_file, "wb") as f:
-                f.write(b"0" * (100 * 1024))
-            
-            res = upload_to_youtube(video_file, title="Test Short", privacy_status="unlisted")
-            self.assertEqual(res["status"], "SUCCESS")
-            self.assertIn("video_id", res)
-            self.assertIn("youtube_url", res)
 
-if __name__ == "__main__":
-    unittest.main()
+def _video(tmp_path):
+    path = tmp_path / "short.mp4"
+    path.write_bytes(b"0" * 1024)
+    return str(path)
+
+
+def test_mock_upload(tmp_path):
+    res = upload_to_youtube(_video(tmp_path), title="Test Short", privacy_status="unlisted")
+    assert res["status"] == "SUCCESS"
+    assert res["mode"] == "MOCK"
+
+
+def test_missing_credentials_fail_instead_of_faking(tmp_path, monkeypatch):
+    monkeypatch.delenv("SHORTS_MOCK")
+    res = upload_to_youtube(_video(tmp_path))
+    assert res["status"] == "FAILED"
+    assert "credentials" in res["error"]
+
+
+def test_placeholder_credentials_fail(tmp_path, monkeypatch):
+    monkeypatch.delenv("SHORTS_MOCK")
+    for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"):
+        monkeypatch.setenv(key, f"your_{key.lower()}_here")
+    assert upload_to_youtube(_video(tmp_path))["status"] == "FAILED"
+
+
+def test_bad_privacy_and_missing_file(tmp_path):
+    assert upload_to_youtube(_video(tmp_path), privacy_status="everyone")["status"] == "FAILED"
+    assert upload_to_youtube(str(tmp_path / "none.mp4"))["status"] == "FAILED"
+
+
+def test_load_metadata(tmp_path):
+    path = tmp_path / "meta.json"
+    path.write_text(json.dumps({"title": "T", "description": "D", "tags": ["a"], "status": "SUCCESS"}))
+    assert load_metadata(str(path)) == {"title": "T", "description": "D", "tags": ["a"]}

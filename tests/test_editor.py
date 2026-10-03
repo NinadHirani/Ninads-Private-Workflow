@@ -1,22 +1,27 @@
-import sys
 import os
-import tempfile
-import unittest
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from conftest import probe
 from scripts.editor import edit_video
 
-class TestEditor(unittest.TestCase):
-    def test_edit_video(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            input_file = os.path.join(tmp_dir, "raw.mp4")
-            with open(input_file, "wb") as f:
-                f.write(b"0" * (200 * 1024))
-            output_file = os.path.join(tmp_dir, "short.mp4")
-            
-            res = edit_video(input_file, output_file, duration=15)
-            self.assertEqual(res["status"], "SUCCESS")
-            self.assertTrue(os.path.exists(output_file))
 
-if __name__ == "__main__":
-    unittest.main()
+def test_edit_makes_vertical_short(sample_video, tmp_path):
+    output_file = str(tmp_path / "short.mp4")
+    res = edit_video(sample_video, output_file, duration=5)
+    assert res["status"] == "SUCCESS"
+    streams = probe(output_file)
+    video = next(s for s in streams if s["codec_type"] == "video")
+    assert (video["width"], video["height"]) == (1080, 1920)
+    assert any(s["codec_type"] == "audio" for s in streams)
+
+
+def test_junk_input_fails_instead_of_copying(sample_video, tmp_path):
+    junk = tmp_path / "raw.mp4"
+    junk.write_bytes(b"0" * (200 * 1024))
+    output_file = str(tmp_path / "short.mp4")
+    res = edit_video(str(junk), output_file, duration=15)
+    assert res["status"] == "FAILED"
+    assert not os.path.exists(output_file)
+
+
+def test_missing_input_fails(tmp_path):
+    assert edit_video(str(tmp_path / "nope.mp4"))["status"] == "FAILED"

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Content Finder Module - AI Shorts Factory
-Searches Pexels API (with fallback search) for licensed, high-quality portrait videos.
-Returns structured JSON with optimal video candidate details.
+Searches Pexels (then Pixabay) for free, licensed portrait videos and picks the best candidate.
+Both APIs are free; set PEXELS_API_KEY and/or PIXABAY_API_KEY. SHORTS_MOCK=1 uses a local sample instead.
 """
 
 import os
@@ -10,6 +10,8 @@ import sys
 import json
 import argparse
 import logging
+import urllib.parse
+import urllib.request
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -20,128 +22,160 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - 
 logger = logging.getLogger("content_finder")
 
 PEXELS_API_URL = "https://api.pexels.com/videos/search"
+PIXABAY_API_URL = "https://pixabay.com/api/videos/"
+MIN_DURATION = 5
+MAX_DURATION = 60
+MAX_HEIGHT = 1920  # no point downloading 4K for a 1080x1920 Short
+
+
+def mock_mode() -> bool:
+    return os.getenv("SHORTS_MOCK", "").strip().lower() in ("1", "true", "yes")
+
+
+def real_key(name: str):
+    """The env value, or None when it is missing or still a placeholder from .env.example."""
+    value = (os.getenv(name) or "").strip()
+    if not value or value.startswith(("mock_", "your_")):
+        return None
+    return value
+
+
+def _get_json(url: str, headers: dict = None, timeout: int = 10) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": "ai-shorts-factory/1.0", **(headers or {})})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.loads(response.read().decode())
+
 
 def search_pexels(topic: str, per_page: int = 15) -> list:
-    api_key = os.getenv("PEXELS_API_KEY")
-    if not api_key or api_key.startswith("mock_"):
-        logger.warning("PEXELS_API_KEY is missing or mock. Using fallback candidate provider.")
-        return get_mock_candidates(topic)
-    
-    headers = {"Authorization": api_key}
-    params = f"?query={topic}&orientation=portrait&per_page={per_page}"
-    
+    api_key = real_key("PEXELS_API_KEY")
+    if not api_key:
+        return []
+    query = urllib.parse.urlencode({"query": topic, "orientation": "portrait", "per_page": per_page})
     try:
-        import urllib.request
-        req = urllib.request.Request(PEXELS_API_URL + params, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode())
-                return data.get("videos", [])
+        data = _get_json(f"{PEXELS_API_URL}?{query}", {"Authorization": api_key})
     except Exception as e:
-        logger.error(f"Failed to query Pexels API: {e}")
-        return get_mock_candidates(topic)
-    
-    return get_mock_candidates(topic)
+        logger.error(f"Pexels search failed: {e}")
+        return []
+    return data.get("videos", [])
 
-def rank_and_select_video(videos: list) -> dict:
+
+def search_pixabay(topic: str, per_page: int = 15) -> list:
+    """Pixabay results, reshaped to look like Pexels videos so one ranking function handles both."""
+    api_key = real_key("PIXABAY_API_KEY")
+    if not api_key:
+        return []
+    query = urllib.parse.urlencode({"key": api_key, "q": topic, "per_page": per_page, "safesearch": "true"})
+    try:
+        data = _get_json(f"{PIXABAY_API_URL}?{query}")
+    except Exception as e:
+        logger.error(f"Pixabay search failed: {e}")
+        return []
+    videos = []
+    for hit in data.get("hits", []):
+        files = [
+            {"width": f.get("width"), "height": f.get("height"), "link": f.get("url")}
+            for f in (hit.get("videos") or {}).values()
+            if isinstance(f, dict) and f.get("url")
+        ]
+        videos.append({
+            "id": f"pixabay_{hit.get('id')}",
+            "duration": hit.get("duration", 0),
+            "user": {"name": hit.get("user") or "Unknown Creator"},
+            "video_files": files,
+        })
+    return videos
+
+
+def find_videos(topic: str) -> list:
+    if mock_mode():
+        logger.warning("SHORTS_MOCK is on: using the local sample video.")
+        return get_mock_candidates(topic)
+    videos = search_pexels(topic)
     if not videos:
-        return None
-    
+        videos = search_pixabay(topic)
+    return videos
+
+
+def _dims(f: dict):
+    return (f.get("width") or 0, f.get("height") or 0)
+
+
+def _pick_file(video_files: list):
+    """Best file for a vertical Short: portrait if any, the largest one up to 1920px tall."""
+    usable = [f for f in video_files if f.get("link")]
+    if not usable:
+        return None, False
+    portrait = [f for f in usable if _dims(f)[1] > _dims(f)[0]]
+    pool = portrait or usable
+    capped = [f for f in pool if _dims(f)[1] <= MAX_HEIGHT]
+    if capped:
+        best = max(capped, key=lambda f: _dims(f)[0] * _dims(f)[1])
+    else:
+        best = min(pool, key=lambda f: _dims(f)[0] * _dims(f)[1])
+    return best, bool(portrait)
+
+
+def rank_and_select_video(videos: list):
+    """The best candidate, or None when nothing fits (wrong length or no downloadable file)."""
     candidates = []
-    for video in videos:
-        duration = video.get("duration", 0)
-        # Target duration 10 - 60 seconds
-        if duration < 5 or duration > 60:
+    for video in videos or []:
+        duration = video.get("duration", 0) or 0
+        if duration < MIN_DURATION or duration > MAX_DURATION:
             continue
-            
-        video_files = video.get("video_files", [])
-        best_file = None
-        highest_res = 0
-        
-        for vf in video_files:
-            width = vf.get("width", 0) or 0
-            height = vf.get("height", 0) or 0
-            if height > width: # Portrait preferred
-                res = width * height
-                if res > highest_res:
-                    highest_res = res
-                    best_file = vf
-                    
-        if not best_file and video_files:
-            best_file = video_files[0]
-            
-        if best_file:
-            score = highest_res + (100 - abs(30 - duration)) * 10
-            candidates.append({
-                "score": score,
-                "video_id": video.get("id"),
-                "video_url": best_file.get("link"),
-                "duration": duration,
-                "width": best_file.get("width", 1080),
-                "height": best_file.get("height", 1920),
-                "user": video.get("user", {}).get("name", "Unknown Creator")
-            })
-            
+        best_file, is_portrait = _pick_file(video.get("video_files", []))
+        if not best_file:
+            continue
+        width, height = _dims(best_file)
+        candidates.append(((is_portrait, width * height, -abs(30 - duration)), {
+            "video_id": video.get("id"),
+            "video_url": best_file.get("link"),
+            "duration": duration,
+            "width": width,
+            "height": height,
+            "user": (video.get("user") or {}).get("name", "Unknown Creator"),
+        }))
     if not candidates:
-        # Fallback to first video raw details
-        v = videos[0]
-        v_files = v.get("video_files", [{}])
-        vf = v_files[0] if v_files else {}
-        return {
-            "video_id": v.get("id", 101),
-            "video_url": vf.get("link", "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4"),
-            "duration": v.get("duration", 20),
-            "width": vf.get("width", 1080),
-            "height": vf.get("height", 1920),
-            "user": "Fallback Creator"
-        }
-        
-    candidates.sort(key=lambda x: x["score"], reverse=True)
-    selected = candidates[0]
-    del selected["score"]
-    return selected
+        return None
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    return candidates[0][1]
+
 
 def get_mock_candidates(topic: str) -> list:
-    """Mock candidate video structure for testing and offline execution."""
+    """A local sample clip for offline runs and tests (tests/conftest.py generates tests/sample.mp4)."""
     sample_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tests", "sample.mp4"))
     return [
         {
             "id": 855280,
             "duration": 22,
-            "user": {"name": "Nature Media"},
+            "user": {"name": "Sample Clip"},
             "video_files": [
-                {
-                    "id": 1,
-                    "quality": "hd",
-                    "width": 1080,
-                    "height": 1920,
-                    "link": f"file://{sample_path}"
-                }
-            ]
+                {"id": 1, "quality": "hd", "width": 1080, "height": 1920, "link": f"file://{sample_path}"}
+            ],
         }
     ]
+
 
 def main():
     parser = argparse.ArgumentParser(description="Find portrait videos for YouTube Shorts")
     parser.add_argument("--topic", type=str, default="waterfall", help="Topic / keyword to search for")
     args = parser.parse_args()
-    
+
     logger.info(f"Searching content for topic: '{args.topic}'")
-    videos = search_pexels(args.topic)
-    best_candidate = rank_and_select_video(videos)
-    
+    if not mock_mode() and not (real_key("PEXELS_API_KEY") or real_key("PIXABAY_API_KEY")):
+        error = "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for an offline run."
+        logger.error(error)
+        print(json.dumps({"status": "FAILED", "error": error}))
+        sys.exit(1)
+
+    best_candidate = rank_and_select_video(find_videos(args.topic))
     if not best_candidate:
         logger.error("No valid video candidate found.")
-        print(json.dumps({"status": "FAILED", "error": "No valid video candidate found"}))
+        print(json.dumps({"status": "FAILED", "error": f"No usable {MIN_DURATION}-{MAX_DURATION}s video found for '{args.topic}'"}))
         sys.exit(1)
-        
-    result = {
-        "status": "SUCCESS",
-        "topic": args.topic,
-        "candidate": best_candidate
-    }
+
     logger.info(f"Selected candidate video ID {best_candidate['video_id']} ({best_candidate['width']}x{best_candidate['height']}, {best_candidate['duration']}s)")
-    print(json.dumps(result, indent=2))
+    print(json.dumps({"status": "SUCCESS", "topic": args.topic, "candidate": best_candidate}, indent=2))
+
 
 if __name__ == "__main__":
     main()
