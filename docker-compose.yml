@@ -1,12 +1,17 @@
-version: '3.8'
-
 services:
+  # n8n runs the pipeline. Its Execute Command node runs inside this container,
+  # so the image adds Python, FFmpeg and the pipeline's packages (see docker/n8n/Dockerfile).
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    build:
+      context: .
+      dockerfile: docker/n8n/Dockerfile
+    image: ai-shorts-n8n
     container_name: ai_shorts_n8n
     restart: always
     ports:
       - "5678:5678"
+    env_file:
+      - .env
     environment:
       - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
@@ -15,22 +20,22 @@ services:
       - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
-      - PEXELS_API_KEY=${PEXELS_API_KEY}
-      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
-      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
-      - YOUTUBE_REFRESH_TOKEN=${YOUTUBE_REFRESH_TOKEN}
+      # n8n 2.0+ disables the Execute Command node by default; the workflow needs it.
+      - NODES_EXCLUDE=[]
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./:/files
+      - ./:/app
     networks:
       - ai_shorts_network
 
+  # Test runner: docker compose run --rm python_worker
   python_worker:
     build:
       context: .
       dockerfile: docker/python/Dockerfile
     container_name: ai_shorts_worker
-    restart: unless-stopped
+    profiles: ["test"]
+    restart: "no"
     env_file:
       - .env
     volumes:
