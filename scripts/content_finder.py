@@ -141,8 +141,9 @@ def rank_and_select_video(videos: list):
 
 
 def get_mock_candidates(topic: str) -> list:
-    """A local sample clip for offline runs and tests (tests/conftest.py generates tests/sample.mp4)."""
-    sample_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tests", "sample.mp4"))
+    """A local clip for offline runs and tests: SHORTS_SAMPLE_VIDEO if set, else tests/sample.mp4 (made by tests/conftest.py)."""
+    sample_path = (os.getenv("SHORTS_SAMPLE_VIDEO") or "").strip() or os.path.join(os.path.dirname(__file__), "..", "tests", "sample.mp4")
+    sample_path = os.path.abspath(sample_path)
     return [
         {
             "id": 855280,

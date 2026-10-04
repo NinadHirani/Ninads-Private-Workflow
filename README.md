@@ -52,7 +52,8 @@ ai-shorts-factory/
 │   ├── metadata_generator.py
 │   ├── uploader.py
 │   ├── logger.py
-│   └── archive.py
+│   ├── archive.py
+│   └── run_pipeline.py
 ├── ffmpeg/
 │   └── process_video.sh
 ├── prompts/
@@ -69,7 +70,8 @@ ai-shorts-factory/
     ├── test_metadata.py
     ├── test_uploader.py
     ├── test_logger.py
-    └── test_pipeline_integration.py
+    ├── test_pipeline_integration.py
+    └── test_run_pipeline.py
 ```
 
 ---
@@ -80,16 +82,28 @@ ai-shorts-factory/
 ```bash
 cp .env.example .env
 ```
-Add a free Pexels or Pixabay key (Pexels is tried first, Pixabay is the fallback) and your YouTube OAuth credentials. Missing keys are reported as errors; nothing is faked. For a dry run with no keys, set `SHORTS_MOCK=1`: the finder uses `tests/sample.mp4` and the uploader returns a fake video ID instead of uploading.
+Add a free Pexels or Pixabay key (Pexels is tried first, Pixabay is the fallback) and your YouTube OAuth credentials. Missing keys are reported as errors; nothing is faked. For a dry run with no keys, set `SHORTS_MOCK=1`: the finder uses `tests/sample.mp4` (or `SHORTS_SAMPLE_VIDEO`) and the uploader returns a fake video ID instead of uploading.
 
-### 2. Run the tests
+### 2. Make one Short with one command
+```bash
+python3 scripts/run_pipeline.py --topic "ocean waves"
+```
+This runs every step in order (find, download, validate, edit to 1080x1920, validate, metadata, upload, log, archive) and prints a JSON summary with the YouTube link. Uploads are **private** by default so you can check each Short first; add `--privacy unlisted` or `--privacy public` when you're happy. Other options: `--duration 45` (5 to 180 seconds), `--keep-files` (skip archiving).
+
+Test run with no keys and nothing uploaded, but real FFmpeg rendering:
+```bash
+SHORTS_MOCK=1 python3 scripts/run_pipeline.py --topic ocean
+```
+Set `SHORTS_SAMPLE_VIDEO=/path/to/clip.mp4` to test with your own clip instead of `tests/sample.mp4`.
+
+### 3. Run the tests
 ```bash
 pip install -r docker/python/requirements.txt
 python3 -m pytest tests/ -v
 ```
 FFmpeg must be installed for the video tests (they generate `tests/sample.mp4` on first run); without it those tests are skipped. In Docker: `docker compose run --rm python_worker`.
 
-### 3. Start n8n
+### 4. Start n8n
 ```bash
 docker compose up -d --build
 ```

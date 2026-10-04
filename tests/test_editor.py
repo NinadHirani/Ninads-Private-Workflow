@@ -25,3 +25,17 @@ def test_junk_input_fails_instead_of_copying(sample_video, tmp_path):
 
 def test_missing_input_fails(tmp_path):
     assert edit_video(str(tmp_path / "nope.mp4"))["status"] == "FAILED"
+
+
+def test_edit_timeout_stops_ffmpeg_and_cleans_up(sample_video, tmp_path, monkeypatch):
+    import subprocess
+    from scripts.editor import edit_video
+    monkeypatch.setenv("FFMPEG_TIMEOUT_SEC", "1")
+    out = tmp_path / "slow.mp4"
+    result = edit_video(sample_video, str(out), duration=8)
+    if result["status"] == "SUCCESS":
+        return  # machine fast enough to finish in under a second
+    assert "FFMPEG_TIMEOUT_SEC" in result["error"]
+    assert not out.exists()
+    left = subprocess.run(["pgrep", "-f", str(out)], capture_output=True, text=True).stdout.strip()
+    assert left == ""

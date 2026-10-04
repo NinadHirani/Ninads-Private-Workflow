@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""
+Run Pipeline - AI Shorts Factory
+Runs every step for one Short in order, the same steps the n8n workflows chain:
+find -> download -> validate -> edit (1080x1920) -> validate -> metadata -> upload -> log -> archive.
+
+Real run (needs a free Pexels/Pixabay key and YouTube OAuth values in .env):
+    python scripts/run_pipeline.py --topic "ocean waves"
+Test run (no API calls, nothing uploaded, real FFmpeg rendering):
+    SHORTS_MOCK=1 python scripts/run_pipeline.py --topic ocean
+Uploads go up as private by default so you can check each Short before it goes public.
+"""
+
+import os
+import sys
+import json
+import time
+import argparse
+import logging
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.archive import archive_processed_media
+from scripts.content_finder import find_videos, rank_and_select_video, mock_mode, real_key
+from scripts.downloader import download_video
+from scripts.editor import edit_video
+from scripts.logger import log_execution
+from scripts.metadata_generator import generate_metadata
+from scripts.uploader import upload_to_youtube
+from scripts.validator import validate_video
+
+logger = logging.getLogger("run_pipeline")
+
+
+def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False) -> dict:
+    started = time.time()
+    steps = {}
+    raw_path = edited_path = None
+
+    def fail(step: str, error: str) -> dict:
+        logger.error(f"Pipeline stopped at '{step}': {error}")
+        log_execution(topic, "FAILED", os.path.basename(edited_path or raw_path or ""),
+                      execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
+        return {"status": "FAILED", "failed_step": step, "error": error, "steps": steps,
+                "mode": "MOCK" if mock_mode() else "PRODUCTION"}
+
+    if not mock_mode() and not (real_key("PEXELS_API_KEY") or real_key("PIXABAY_API_KEY")):
+        return fail("find", "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for a test run.")
+
+    candidate = rank_and_select_video(find_videos(topic))
+    if not candidate:
+        return fail("find", f"No usable video found for '{topic}'")
+    steps["find"] = candidate
+
+    download = download_video(candidate["video_url"])
+    steps["download"] = download
+    if download.get("status") != "SUCCESS":
+        return fail("download", download.get("error", "download failed"))
+    raw_path = download["file_path"]
+
+    check = validate_video(raw_path)
+    steps["validate_raw"] = check
+    if check.get("status") != "PASS":
+        return fail("validate_raw", check.get("reason", "invalid source video"))
+
+    edit = edit_video(raw_path, duration=duration)
+    steps["edit"] = edit
+    if edit.get("status") != "SUCCESS":
+        return fail("edit", edit.get("error", "edit failed"))
+    edited_path = edit["file_path"]
+
+    check = validate_video(edited_path)
+    steps["validate_edited"] = check
+    if check.get("status") != "PASS" or check.get("width") != 1080 or check.get("height") != 1920:
+        return fail("validate_edited", check.get("reason") or f"edited video is {check.get('width')}x{check.get('height')}, expected 1080x1920")
+
+    meta = generate_metadata(topic)
+    steps["metadata"] = meta
+    if meta.get("status") != "SUCCESS":
+        return fail("metadata", meta.get("error", "metadata failed"))
+
+    upload = upload_to_youtube(edited_path, title=meta["title"], description=meta["description"],
+                               tags=meta["tags"], privacy_status=privacy)
+    steps["upload"] = upload
+    if upload.get("status") != "SUCCESS":
+        return fail("upload", upload.get("error", "upload failed"))
+
+    elapsed = round(time.time() - started, 2)
+    log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
+                  execution_time_sec=elapsed)
+    if not keep_files:
+        steps["archive"] = archive_processed_media(raw_path, edited_path)
+
+    return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "youtube_url": upload["youtube_url"],
+            "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Make and upload one YouTube Short")
+    parser.add_argument("--topic", default="waterfall", help="What the Short is about, e.g. 'ocean waves'")
+    parser.add_argument("--duration", type=int, default=30, help="Target length in seconds (max 180)")
+    parser.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
+    parser.add_argument("--keep-files", action="store_true", help="Leave the raw and edited files in place instead of archiving them")
+    args = parser.parse_args()
+    if not 5 <= args.duration <= 180:
+        parser.error("--duration must be between 5 and 180 seconds")
+
+    result = run(args.topic, args.duration, args.privacy, args.keep_files)
+    print(json.dumps(result, indent=2))
+    sys.exit(0 if result["status"] == "SUCCESS" else 1)
+
+
+if __name__ == "__main__":
+    main()

@@ -12,6 +12,7 @@ import json
 import shutil
 import datetime
 import argparse
+import signal
 import subprocess
 import logging
 try:
@@ -27,6 +28,15 @@ EDIT_DIR = os.getenv("EDIT_PATH", "edited")
 FFMPEG_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ffmpeg", "process_video.sh")
 
 
+def _timeout_sec() -> int:
+    """How long one edit may take, from FFMPEG_TIMEOUT_SEC (default 600)."""
+    try:
+        value = int(os.getenv("FFMPEG_TIMEOUT_SEC", "600"))
+    except ValueError:
+        value = 600
+    return value if value > 0 else 600
+
+
 def edit_video(input_path: str, output_path: str = None, duration: int = 30) -> dict:
     if not os.path.exists(input_path):
         return {"status": "FAILED", "error": f"Input file not found: {input_path}"}
@@ -40,13 +50,24 @@ def edit_video(input_path: str, output_path: str = None, duration: int = 30) -> 
 
     start_time = time.time()
     logger.info(f"Editing video '{input_path}' -> '{output_path}'")
+    timeout = _timeout_sec()
+    # Own process group, so a timeout stops FFmpeg too and not just the wrapper script.
+    proc = subprocess.Popen(
+        ["bash", FFMPEG_SCRIPT, input_path, output_path, str(duration)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+    )
     try:
-        res = subprocess.run(
-            ["bash", FFMPEG_SCRIPT, input_path, output_path, str(duration)],
-            capture_output=True, text=True, timeout=600,
-        )
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        return {"status": "FAILED", "error": "FFmpeg took longer than 10 minutes"}
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate()
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return {"status": "FAILED", "error": f"FFmpeg took longer than {timeout} seconds (raise FFMPEG_TIMEOUT_SEC on a slow machine)"}
+    res = subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
 
     if res.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         detail = (res.stderr or res.stdout or "").strip().splitlines()
