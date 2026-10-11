@@ -34,16 +34,41 @@ LEN=$(awk -v a="$DURATION" -v b="${SOURCE_LEN:-0}" 'BEGIN { if (b + 0 > 0 && b +
 FADE_START=$(awk -v l="$LEN" 'BEGIN { s = l - 2; if (s < 0) s = 0; printf "%.2f", s }')
 
 VIDEO_FILTER="scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30"
+
+# Optional channel-logo watermark on every Short (LOGO_FILE=path/to/logo.png).
+# Position: bottom_right (default), bottom_left, top_right, top_left. Width is a % of frame width.
+LOGO_FILE="${LOGO_FILE:-}"
+LOGO_POSITION="${LOGO_POSITION:-bottom_right}"
+LOGO_WIDTH_PCT="${LOGO_WIDTH_PCT:-15}"
+LOGO_OPACITY="${LOGO_OPACITY:-0.85}"
+LOGO_ARGS=()
+LOGO_FILTER_ARGS=()
+if [ -n "$LOGO_FILE" ] && [ -f "$LOGO_FILE" ]; then
+    LOGO_MARGIN=$(( 1080 * 5 / 100 ))
+    LOGO_W=$(( 1080 * LOGO_WIDTH_PCT / 100 ))
+    case "$LOGO_POSITION" in
+        bottom_left)  LOGO_X="x=${LOGO_MARGIN}:y=H-h-${LOGO_MARGIN}" ;;
+        top_right)    LOGO_X="x=W-w-${LOGO_MARGIN}:y=${LOGO_MARGIN}" ;;
+        top_left)     LOGO_X="x=${LOGO_MARGIN}:y=${LOGO_MARGIN}" ;;
+        *)            LOGO_X="x=W-w-${LOGO_MARGIN}:y=H-h-${LOGO_MARGIN}" ;;
+    esac
+    LOGO_ARGS=(-i "$LOGO_FILE")
+    VIDEO_MAP=()
+    LOGO_FILTER_ARGS=(-filter_complex "[0:v]${VIDEO_FILTER}[base];[1:v]scale=${LOGO_W}:-1,format=rgba,colorchannelmixer=aa=${LOGO_OPACITY}[wm];[base][wm]overlay=${LOGO_X}[vout]" -map "[vout]")
+else
+    VIDEO_MAP=(-map 0:v:0)
+    LOGO_FILTER_ARGS=(-vf "$VIDEO_FILTER")
+fi
 HAS_AUDIO=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$INPUT_FILE" 2>/dev/null | head -n 1 || true)
 
 echo "Processing video '$INPUT_FILE' -> '$OUTPUT_FILE' (${LEN}s, 1080x1920)..."
 
 if [ -n "$HAS_AUDIO" ]; then
     ffmpeg -hide_banner -loglevel error -y \
-        -i "$INPUT_FILE" \
+        -i "$INPUT_FILE" ${LOGO_ARGS[@]+"${LOGO_ARGS[@]}"} \
         -t "$LEN" \
-        -map 0:v:0 -map 0:a:0 \
-        -vf "$VIDEO_FILTER" \
+        "${VIDEO_MAP[@]}" -map 0:a:0 \
+        "${LOGO_FILTER_ARGS[@]}" \
         -af "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${FADE_START}:d=2" \
         -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p \
         -c:a aac -b:a 192k -ar 44100 \
@@ -52,11 +77,11 @@ if [ -n "$HAS_AUDIO" ]; then
 else
     # No audio in the source: add a silent stereo track so every Short has one.
     ffmpeg -hide_banner -loglevel error -y \
-        -i "$INPUT_FILE" \
+        -i "$INPUT_FILE" ${LOGO_ARGS[@]+"${LOGO_ARGS[@]}"} \
         -f lavfi -i "anullsrc=channel_layout=stereo:sample_rate=44100" \
         -t "$LEN" \
-        -map 0:v:0 -map 1:a:0 \
-        -vf "$VIDEO_FILTER" \
+        "${VIDEO_MAP[@]}" -map 1:a:0 \
+        "${LOGO_FILTER_ARGS[@]}" \
         -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p \
         -c:a aac -b:a 128k \
         -shortest \

@@ -37,9 +37,12 @@ def _timeout_sec() -> int:
     return value if value > 0 else 600
 
 
-def edit_video(input_path: str, output_path: str = None, duration: int = 30) -> dict:
+def edit_video(input_path: str, output_path: str = None, duration: int = 30, logo: str = None) -> dict:
     if not os.path.exists(input_path):
         return {"status": "FAILED", "error": f"Input file not found: {input_path}"}
+    logo = logo or os.getenv("LOGO_FILE") or ""
+    if logo and not os.path.exists(logo):
+        return {"status": "FAILED", "error": f"Logo file not found: {logo}"}
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         return {"status": "FAILED", "error": "FFmpeg is not installed. Install it, or run the pipeline in Docker."}
 
@@ -52,9 +55,12 @@ def edit_video(input_path: str, output_path: str = None, duration: int = 30) -> 
     logger.info(f"Editing video '{input_path}' -> '{output_path}'")
     timeout = _timeout_sec()
     # Own process group, so a timeout stops FFmpeg too and not just the wrapper script.
+    env = dict(os.environ)
+    if logo:
+        env["LOGO_FILE"] = os.path.abspath(logo)
     proc = subprocess.Popen(
         ["bash", FFMPEG_SCRIPT, input_path, output_path, str(duration)],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, env=env,
     )
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
@@ -92,9 +98,10 @@ def main():
     parser.add_argument("--input", type=str, required=True, help="Input raw video path")
     parser.add_argument("--output", type=str, default=None, help="Output edited video path")
     parser.add_argument("--duration", type=int, default=30, help="Target duration in seconds")
+    parser.add_argument("--logo", type=str, default=None, help="Channel logo PNG to burn in as a watermark")
     args = parser.parse_args()
 
-    result = edit_video(args.input, args.output, args.duration)
+    result = edit_video(args.input, args.output, args.duration, logo=args.logo)
     print(json.dumps(result, indent=2))
     if result["status"] != "SUCCESS":
         sys.exit(1)

@@ -32,7 +32,7 @@ from scripts.validator import validate_video
 logger = logging.getLogger("run_pipeline")
 
 
-def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False) -> dict:
+def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False, logo: str = None) -> dict:
     started = time.time()
     steps = {}
     raw_path = edited_path = None
@@ -63,7 +63,7 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     if check.get("status") != "PASS":
         return fail("validate_raw", check.get("reason", "invalid source video"))
 
-    edit = edit_video(raw_path, duration=duration)
+    edit = edit_video(raw_path, duration=duration, logo=logo)
     steps["edit"] = edit
     if edit.get("status") != "SUCCESS":
         return fail("edit", edit.get("error", "edit failed"))
