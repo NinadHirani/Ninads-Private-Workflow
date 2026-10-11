@@ -9,6 +9,7 @@ AI Shorts Factory automatically:
 - Downloads raw video clips with multi-attempt exponential retry logic
 - Validates resolution, aspect ratio, audio stream, and playable format
 - Edits videos into 9:16 portrait format (1080x1920) with FFmpeg audio normalization
+- Burns the channel logo into every Short as a watermark (when LOGO_FILE is set)
 - Generates SEO-optimized titles, descriptions, and hashtags
 - Uploads vertical Shorts directly to YouTube
 - Logs execution status to SQLite (`logs/history.db`) & CSV (`logs/execution.csv`)
@@ -25,6 +26,8 @@ ai-shorts-factory/
 ├── .gitignore
 ├── README.md
 ├── context.json
+├── assets/
+│   └── channel_logo.png        # your channel logo, burned in as a watermark
 ├── docker/
 │   ├── n8n/
 │   │   └── Dockerfile
@@ -127,6 +130,16 @@ python3 scripts/shortsctl.py stop      # finishes the current Short, then stops
 ```
 
 Edit `context.json` to tell it what kind of Shorts to make. Uploads go up as **private** until you switch them to public.
+
+### Channel logo watermark
+
+Put your logo in `assets/channel_logo.png` and add this line to `.env`:
+
+```
+LOGO_FILE=assets/channel_logo.png
+```
+
+Every Short then carries your logo (bottom right by default). Tune it with `LOGO_POSITION` (bottom_right, bottom_left, top_right, top_left), `LOGO_WIDTH_PCT` (default 15), and `LOGO_OPACITY` (default 0.85). Use a transparent-background PNG; if your logo has a white background, see the note below on making one.
 
 ### Good to know
 - Uploads from a YouTube API project that hasn't passed Google's audit are locked to private. Request an audit if you want public Shorts.
