@@ -24,6 +24,7 @@ ai-shorts-factory/
 ├── .env.example
 ├── .gitignore
 ├── README.md
+├── context.json
 ├── docker/
 │   ├── n8n/
 │   │   └── Dockerfile
@@ -53,7 +54,10 @@ ai-shorts-factory/
 │   ├── uploader.py
 │   ├── logger.py
 │   ├── archive.py
-│   └── run_pipeline.py
+│   ├── run_pipeline.py
+│   ├── shortsctl.py
+│   ├── auto_run.py
+│   └── connect_youtube.py
 ├── ffmpeg/
 │   └── process_video.sh
 ├── prompts/
@@ -110,6 +114,19 @@ docker compose up -d --build
 Open `http://localhost:5678`, import `n8n/master_workflow.json` and activate it. It runs once a day: find, download, validate, edit, write metadata, upload, log, archive. Any failed step stops the run. The topic is set in the 01_Content_Finder, 05_Metadata and 07_Logger commands (`nature` by default). The files in `n8n/workflows/` are single-step snippets for reference; the master workflow is the one to import.
 
 The n8n image is built from `docker/n8n/Dockerfile`, which adds Python, FFmpeg and the Python packages, because n8n's Execute Command node runs inside the n8n container. Compose also sets `NODES_EXCLUDE=[]`, since n8n 2.0 and later disable that node by default.
+
+## Start and stop (one click each)
+
+Set up your channel once, then let it run:
+
+```bash
+python3 scripts/shortsctl.py connect   # once: links your YouTube channel
+python3 scripts/shortsctl.py start     # makes and uploads Shorts until you stop it
+python3 scripts/shortsctl.py status    # is it running? how many made today
+python3 scripts/shortsctl.py stop      # finishes the current Short, then stops
+```
+
+Edit `context.json` to tell it what kind of Shorts to make. Uploads go up as **private** until you switch them to public.
 
 ### Good to know
 - Uploads from a YouTube API project that hasn't passed Google's audit are locked to private. Request an audit if you want public Shorts.
