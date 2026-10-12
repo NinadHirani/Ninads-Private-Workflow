@@ -60,6 +60,7 @@ ai-shorts-factory/
 │   ├── run_pipeline.py
 │   ├── shortsctl.py
 │   ├── auto_run.py
+│   ├── factory_cli.py
 │   └── connect_youtube.py
 ├── ffmpeg/
 │   └── process_video.sh
@@ -177,3 +178,25 @@ python3 scripts/logger.py --topic "nature" --status SUCCESS --yt_id <video_id>
 python3 scripts/archive.py --raw downloads/raw_<timestamp>.mp4 --edited edited/short_<timestamp>.mp4
 ```
 Each script prints JSON on stdout (logs go to stderr) and exits non-zero on failure.
+
+---
+
+## AgentTown Connector Interface
+
+For programmatic integration with AgentTown (or any orchestrator), use `scripts/factory_cli.py`. It provides a JSON-in / JSON-out stream emitting step progress events and a final result event.
+
+```bash
+# Find candidate videos
+python3 scripts/factory_cli.py find --json '{"topic":"ocean waves"}'
+
+# Produce a Short (renders and validates without uploading)
+python3 scripts/factory_cli.py produce --json '{"topic":"ocean waves","duration":30,"style":"cinematic","mode":"clip"}'
+
+# Publish a produced Short
+python3 scripts/factory_cli.py publish --json '{"file":"edited/short_xxx.mp4","platform":"youtube","privacy":"private","metadata":{"title":"...","description":"...","tags":["..."]}}'
+
+# Continuous maker status & control
+python3 scripts/factory_cli.py maker --json '{"action":"status"}'
+python3 scripts/factory_cli.py maker --json '{"action":"start","privacy":"private"}'
+python3 scripts/factory_cli.py maker --json '{"action":"stop"}'
+```

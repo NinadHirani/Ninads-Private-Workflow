@@ -61,8 +61,7 @@ def _collect_clips(topic: str, want: int) -> list:
     return clips
 
 
-def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_files: bool = False,
-              logo: str = None, n_clips: int = 3) -> dict:
+def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 3, on_progress = None) -> dict:
     started = time.time()
     steps = {}
     raw_clips = edited_path = None
@@ -73,8 +72,16 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
     logo = logo or os.getenv("LOGO_FILE") or ""
     n_clips = max(1, min(int(os.getenv("STORY_CLIPS", str(n_clips))), 5))
 
+    def notify(step: str, status: str, detail: str = None):
+        if callable(on_progress):
+            try:
+                on_progress(step, status, detail)
+            except Exception:
+                pass
+
     def fail(step: str, error: str) -> dict:
         logger.error("Story pipeline stopped at '%s': %s", step, error)
+        notify(step, "failed", error)
         from run_pipeline import log_execution
         log_execution(topic, "FAILED", os.path.basename(edited_path or ""), "",
                       "", execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
@@ -84,25 +91,34 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
     if not mock_mode() and not (os.getenv("PEXELS_API_KEY") or os.getenv("PIXABAY_API_KEY")):
         return fail("find", "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for a test run.")
 
+    notify("script", "running", topic)
     script = write_script(topic)
     steps["script"] = {"writer": script["writer"], "lines": len(script["lines"])}
+    notify("script", "done")
 
+    notify("voiceover", "running")
     vo = make_voiceover(script["lines"], workdir)
     steps["voiceover"] = {"voice": vo.get("voice"), "words": len(vo.get("words") or [])}
     if vo.get("status") != "SUCCESS":
         return fail("voiceover", vo.get("error", "voiceover failed"))
+    notify("voiceover", "done")
 
+    notify("captions", "running")
     ass_path = os.path.join(workdir, "captions.ass")
     has_captions = captions.build_ass(vo.get("words"), ass_path)
     if not has_captions:
         has_captions = captions.fallback_ass(script["lines"], 60.0, ass_path)
     steps["captions"] = "word-timed" if has_captions else "none"
+    notify("captions", "done")
 
+    notify("find", "running", f"{n_clips} clips for {topic}")
     raw_clips = _collect_clips(topic, n_clips)
     steps["clips"] = len(raw_clips)
     if len(raw_clips) < 1:
         return fail("find", "no usable stock clips for this topic")
+    notify("find", "done")
 
+    notify("edit", "running", f"story reel, {duration}s")
     edited_path = os.path.join(workdir, "story_reel.mp4")
     cmd = ["bash", STORY_SCRIPT, edited_path, str(duration), vo["file"]]
     if has_captions:
@@ -116,30 +132,69 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
         detail = (proc.stderr or proc.stdout or "").strip().splitlines()
         return fail("edit", detail[-1] if detail else "story edit produced no output")
     steps["edit"] = {"file": edited_path, "size": os.path.getsize(edited_path)}
+    notify("edit", "done")
 
+    notify("validate_edited", "running")
     check = validate_video(edited_path)
     steps["validate_edited"] = check
     if check.get("status") != "PASS" or check.get("width") != 1080 or check.get("height") != 1920:
         return fail("validate_edited", check.get("reason") or f"edited video is {check.get('width')}x{check.get('height')}, expected 1080x1920")
+    notify("validate_edited", "done")
 
+    notify("metadata", "running")
     meta = generate_metadata(topic)
     steps["metadata"] = meta
     if meta.get("status") != "SUCCESS":
         return fail("metadata", meta.get("error", "metadata failed"))
+    notify("metadata", "done")
 
-    from uploader import upload_to_youtube
-    from instagram_uploader import upload_to_instagram
-    upload = upload_to_youtube(edited_path, title=meta["title"], description=meta["description"],
-                               tags=meta["tags"], privacy_status=privacy)
+    elapsed = round(time.time() - started, 2)
+    return {
+        "status": "SUCCESS",
+        "mode": "MOCK" if mock_mode() else "PRODUCTION",
+        "topic": topic,
+        "style": "story",
+        "mode_type": "story",
+        "writer": script["writer"],
+        "voice": vo.get("voice"),
+        "duration": duration,
+        "raw_path": raw_clips[0] if raw_clips else None,
+        "raw_clips": raw_clips,
+        "edited_path": edited_path,
+        "file_path": edited_path,
+        "metadata": meta,
+        "total_time_sec": elapsed,
+        "steps": steps,
+    }
+
+
+def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_files: bool = False,
+              logo: str = None, n_clips: int = 3, on_progress = None) -> dict:
+    started = time.time()
+    prod = produce_story(topic, duration=duration, logo=logo, n_clips=n_clips, on_progress=on_progress)
+    if prod.get("status") != "SUCCESS":
+        return prod
+
+    steps = prod.get("steps", {})
+    edited_path = prod["edited_path"]
+    meta = prod["metadata"]
+    raw_clips = prod.get("raw_clips", [])
+
+    from run_pipeline import publish_youtube_video, publish_instagram_video
+    upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
+                                   tags=meta["tags"], privacy=privacy, on_progress=on_progress)
     steps["upload"] = upload
     if upload.get("status") != "SUCCESS":
-        return fail("upload", upload.get("error", "upload failed"))
+        from run_pipeline import log_execution
+        logger.error("Story upload failed: %s", upload.get("error"))
+        log_execution(topic, "FAILED", os.path.basename(edited_path), "", "",
+                      execution_time_sec=round(time.time() - started, 2),
+                      error_message=f"upload: {upload.get('error')}")
+        return {"status": "FAILED", "failed_step": "upload", "error": upload.get("error", "upload failed"),
+                "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
-    caption_text = f"{meta['title']}\n\n{meta['description']}"
-    tags = meta.get("tags") or []
-    if tags:
-        caption_text += "\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:10])
-    ig = upload_to_instagram(edited_path, caption=caption_text)
+    ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
+                                 tags=meta["tags"], on_progress=on_progress)
     steps["upload_instagram"] = ig
     if ig.get("status") != "SUCCESS":
         logger.warning("Instagram post failed (YouTube is already up): %s", ig.get("error", ""))
@@ -148,13 +203,14 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
     from run_pipeline import log_execution
     log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
                   execution_time_sec=elapsed)
-    if not keep_files:
+    if not keep_files and raw_clips:
         steps["archive"] = archive_processed_media(raw_clips[0], edited_path)
 
     return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "style": "story",
-            "writer": script["writer"], "voice": vo.get("voice"), "youtube_url": upload["youtube_url"],
+            "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": upload["youtube_url"],
             "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
             "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
+
 
 
 def main():

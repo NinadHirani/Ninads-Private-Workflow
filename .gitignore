@@ -10,6 +10,9 @@ tests/*.mp4
 logs/*.log
 logs/*.db
 logs/*.csv
+logs/*.pid
+logs/*.json
+logs/STOP
 !**/ .gitkeep
 
 # Python cache

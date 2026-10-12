@@ -33,68 +33,162 @@ from scripts.validator import validate_video
 logger = logging.getLogger("run_pipeline")
 
 
-def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False, logo: str = None, style: str = None) -> dict:
+def produce(topic: str, duration: int = 30, style: str = None, logo: str = None,
+            mode: str = "clip", on_progress = None) -> dict:
     started = time.time()
     steps = {}
     raw_path = edited_path = None
-    # Hard cap of 60 seconds (override with MAX_DURATION_SECONDS in .env).
     max_duration = int(os.getenv("MAX_DURATION_SECONDS", "60"))
     duration = max(5, min(duration, max_duration))
     style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
 
+    def notify(step: str, status: str, detail: str = None):
+        if callable(on_progress):
+            try:
+                on_progress(step, status, detail)
+            except Exception:
+                pass
+
     def fail(step: str, error: str) -> dict:
         logger.error(f"Pipeline stopped at '{step}': {error}")
+        notify(step, "failed", error)
         log_execution(topic, "FAILED", os.path.basename(edited_path or raw_path or ""),
                       execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
         return {"status": "FAILED", "failed_step": step, "error": error, "steps": steps,
                 "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
+    if mode == "story":
+        from scripts.story_pipeline import produce_story
+        return produce_story(topic, duration=duration, logo=logo, on_progress=on_progress)
+
     if not mock_mode() and not (real_key("PEXELS_API_KEY") or real_key("PIXABAY_API_KEY")):
         return fail("find", "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for a test run.")
 
+    notify("find", "running", topic)
     candidate = rank_and_select_video(find_videos(topic))
     if not candidate:
         return fail("find", f"No usable video found for '{topic}'")
     steps["find"] = candidate
+    notify("find", "done")
 
+    notify("download", "running")
     download = download_video(candidate["video_url"])
     steps["download"] = download
     if download.get("status") != "SUCCESS":
         return fail("download", download.get("error", "download failed"))
     raw_path = download["file_path"]
+    notify("download", "done")
 
+    notify("validate_raw", "running")
     check = validate_video(raw_path)
     steps["validate_raw"] = check
     if check.get("status") != "PASS":
         return fail("validate_raw", check.get("reason", "invalid source video"))
+    notify("validate_raw", "done")
 
+    notify("edit", "running", f"{style}, {duration}s")
     edit = edit_video(raw_path, duration=duration, logo=logo, style=style, caption=topic)
     steps["edit"] = edit
     if edit.get("status") != "SUCCESS":
         return fail("edit", edit.get("error", "edit failed"))
     edited_path = edit["file_path"]
+    notify("edit", "done")
 
+    notify("validate_edited", "running")
     check = validate_video(edited_path)
     steps["validate_edited"] = check
     if check.get("status") != "PASS" or check.get("width") != 1080 or check.get("height") != 1920:
         return fail("validate_edited", check.get("reason") or f"edited video is {check.get('width')}x{check.get('height')}, expected 1080x1920")
+    notify("validate_edited", "done")
 
+    notify("metadata", "running")
     meta = generate_metadata(topic)
     steps["metadata"] = meta
     if meta.get("status") != "SUCCESS":
         return fail("metadata", meta.get("error", "metadata failed"))
+    notify("metadata", "done")
 
-    upload = upload_to_youtube(edited_path, title=meta["title"], description=meta["description"],
-                               tags=meta["tags"], privacy_status=privacy)
+    elapsed = round(time.time() - started, 2)
+    return {
+        "status": "SUCCESS",
+        "mode": "MOCK" if mock_mode() else "PRODUCTION",
+        "topic": topic,
+        "style": style,
+        "mode_type": mode,
+        "duration": duration,
+        "raw_path": raw_path,
+        "edited_path": edited_path,
+        "file_path": edited_path,
+        "metadata": meta,
+        "total_time_sec": elapsed,
+        "steps": steps,
+    }
+
+
+def publish_youtube_video(file_path: str, title: str = "", description: str = "",
+                          tags: list = None, privacy: str = "private", on_progress = None) -> dict:
+    if callable(on_progress):
+        try:
+            on_progress("upload", "running", f"YouTube ({privacy})")
+        except Exception:
+            pass
+    upload = upload_to_youtube(file_path, title=title, description=description,
+                               tags=tags or [], privacy_status=privacy)
+    if callable(on_progress):
+        try:
+            on_progress("upload", "done" if upload.get("status") == "SUCCESS" else "failed")
+        except Exception:
+            pass
+    return upload
+
+
+def publish_instagram_video(file_path: str, caption: str = None, title: str = "",
+                            description: str = "", tags: list = None, on_progress = None) -> dict:
+    if callable(on_progress):
+        try:
+            on_progress("upload_instagram", "running", "Instagram Reel")
+        except Exception:
+            pass
+    if not caption:
+        caption = f"{title}\n\n{description}"
+        if tags:
+            caption = f"{caption}\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:10])
+    ig = upload_to_instagram(file_path, caption=caption)
+    if callable(on_progress):
+        try:
+            on_progress("upload_instagram", "done" if ig.get("status") == "SUCCESS" else "failed")
+        except Exception:
+            pass
+    return ig
+
+
+def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False,
+        logo: str = None, style: str = None, on_progress = None) -> dict:
+    started = time.time()
+    style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
+
+    prod = produce(topic, duration=duration, style=style, logo=logo, mode="clip", on_progress=on_progress)
+    if prod.get("status") != "SUCCESS":
+        return prod
+
+    steps = prod.get("steps", {})
+    edited_path = prod["edited_path"]
+    raw_path = prod["raw_path"]
+    meta = prod["metadata"]
+
+    upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
+                                   tags=meta["tags"], privacy=privacy, on_progress=on_progress)
     steps["upload"] = upload
     if upload.get("status") != "SUCCESS":
-        return fail("upload", upload.get("error", "upload failed"))
+        logger.error(f"Pipeline stopped at 'upload': {upload.get('error')}")
+        log_execution(topic, "FAILED", os.path.basename(edited_path),
+                      execution_time_sec=round(time.time() - started, 2),
+                      error_message=f"upload: {upload.get('error')}")
+        return {"status": "FAILED", "failed_step": "upload", "error": upload.get("error", "upload failed"),
+                "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
-    caption = f"{meta['title']}\n\n{meta['description']}"
-    tags = meta.get("tags") or []
-    if tags:
-        caption = f"{caption}\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:10])
-    ig = upload_to_instagram(edited_path, caption=caption)
+    ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
+                                 tags=meta["tags"], on_progress=on_progress)
     steps["upload_instagram"] = ig
     if ig.get("status") != "SUCCESS":
         logger.warning("Instagram post failed (YouTube is already up): %s", ig.get("error", ""))
@@ -108,6 +202,7 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "youtube_url": upload["youtube_url"],
             "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
             "style": style, "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
+
 
 
 def main():
