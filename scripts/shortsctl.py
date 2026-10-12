@@ -85,13 +85,20 @@ def cmd_start(args):
     if os.path.exists(STOP_FILE):
         os.remove(STOP_FILE)
     os.makedirs(LOG_DIR, exist_ok=True)
-    with open(DAEMON_LOG, "ab") as log:
-        proc = subprocess.Popen(
-            [sys.executable, os.path.join(ROOT, "scripts", "auto_run.py"),
-             "--context", os.path.abspath(args.context), "--privacy", args.privacy],
-            stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True, cwd=ROOT,
-        )
+    venv_py = os.path.join(ROOT, ".venv", "bin", "python")
+    py_bin = venv_py if os.path.exists(venv_py) else sys.executable
+    log_fd = os.open(DAEMON_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    proc = subprocess.Popen(
+        [py_bin, os.path.join(ROOT, "scripts", "auto_run.py"),
+         "--context", os.path.abspath(args.context), "--privacy", args.privacy],
+        stdin=subprocess.DEVNULL,
+        stdout=log_fd,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+        cwd=ROOT,
+    )
+    os.close(log_fd)
     write_json(PID_FILE, {"pid": proc.pid, "started_at": datetime.datetime.now().isoformat()})
     print(f"Started. PID {proc.pid}. It makes Shorts from {os.path.basename(args.context)} "
           f"and uploads them {args.privacy}. Run `status` any time, `stop` to stop it.")

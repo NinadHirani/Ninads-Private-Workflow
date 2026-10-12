@@ -223,13 +223,20 @@ def handle_maker(args) -> int:
                 pass
 
         os.makedirs(shortsctl.LOG_DIR, exist_ok=True)
-        with open(shortsctl.DAEMON_LOG, "ab") as log:
-            proc = subprocess.Popen(
-                [sys.executable, os.path.join(ROOT, "scripts", "auto_run.py"),
-                 "--context", os.path.abspath(context_file), "--privacy", privacy],
-                stdout=log, stderr=subprocess.STDOUT,
-                start_new_session=True, cwd=ROOT,
-            )
+        venv_py = os.path.join(ROOT, ".venv", "bin", "python")
+        py_bin = venv_py if os.path.exists(venv_py) else sys.executable
+        log_fd = os.open(shortsctl.DAEMON_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        proc = subprocess.Popen(
+            [py_bin, os.path.join(ROOT, "scripts", "auto_run.py"),
+             "--context", os.path.abspath(context_file), "--privacy", privacy],
+            stdin=subprocess.DEVNULL,
+            stdout=log_fd,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            cwd=ROOT,
+        )
+        os.close(log_fd)
         shortsctl.write_json(shortsctl.PID_FILE, {"pid": proc.pid, "started_at": datetime.datetime.now().isoformat()})
         return emit_result({
             "status": "SUCCESS",

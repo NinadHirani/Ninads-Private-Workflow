@@ -45,10 +45,17 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
         return {"status": "FAILED", "error": f"voiceover failed: {exc}"}
 
 
+def _get_python():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    venv_py = os.path.join(root, ".venv", "bin", "python")
+    return venv_py if os.path.exists(venv_py) else sys.executable
+
+
 def _edge(text: str, out_dir: str, wav: str) -> list:
     mp3 = os.path.join(out_dir, "vo.mp3")
     vtt = os.path.join(out_dir, "vo.vtt")
-    subprocess.run([sys.executable, "-m", "edge_tts", "--voice", VOICE, "--text", text,
+    py = _get_python()
+    subprocess.run([py, "-m", "edge_tts", "--voice", VOICE, "--text", text,
                     "--write-media", mp3, "--write-subtitles", vtt],
                    check=True, capture_output=True, timeout=120)
     words = _parse_vtt(vtt)

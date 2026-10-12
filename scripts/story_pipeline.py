@@ -49,10 +49,15 @@ def _collect_clips(topic: str, want: int) -> list:
             clips.append(copy_path)
         return clips
     clips = []
+    from content_finder import _pick_file
     for cand in find_videos(topic):
         if len(clips) >= want:
             break
         url = cand.get("video_url")
+        if not url and cand.get("video_files"):
+            best_file, _ = _pick_file(cand.get("video_files", []))
+            if best_file:
+                url = best_file.get("link")
         if not url:
             continue
         dl = download_video(url)
