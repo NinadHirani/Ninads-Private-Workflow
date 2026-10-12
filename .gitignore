@@ -19,7 +19,11 @@ __pycache__/
 *.pyd
 .pytest_cache/
 venv/
+.venv/
 env/
+
+# Google OAuth secrets
+client_secret*.json
 
 # OS / Editor files
 .DS_Store
