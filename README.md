@@ -11,7 +11,7 @@ AI Shorts Factory automatically:
 - Edits videos into 9:16 portrait format (1080x1920) with FFmpeg audio normalization
 - Burns the channel logo into every Short as a watermark (when LOGO_FILE is set)
 - Generates SEO-optimized titles, descriptions, and hashtags
-- Uploads vertical Shorts directly to YouTube
+- Uploads vertical Shorts directly to YouTube and posts the same video to Instagram as a Reel
 - Logs execution status to SQLite (`logs/history.db`) & CSV (`logs/execution.csv`)
 - Archives processed media safely without overwriting
 
@@ -123,13 +123,29 @@ The n8n image is built from `docker/n8n/Dockerfile`, which adds Python, FFmpeg a
 Set up your channel once, then let it run:
 
 ```bash
-python3 scripts/shortsctl.py connect   # once: links your YouTube channel
+python3 scripts/shortsctl.py connect   # once: links your YouTube channel and Instagram
 python3 scripts/shortsctl.py start     # makes and uploads Shorts until you stop it
 python3 scripts/shortsctl.py status    # is it running? how many made today
 python3 scripts/shortsctl.py stop      # finishes the current Short, then stops
 ```
 
-Edit `context.json` to tell it what kind of Shorts to make. Uploads go up as **private** until you switch them to public.
+Edit `context.json` to tell it what kind of Shorts to make. YouTube uploads go up as **private** until you switch them to public.
+
+Every Short also goes to Instagram as a Reel: put IG_USERNAME and IG_PASSWORD in `.env` (the same video is posted to both, and the session is cached after the first login). Instagram has no "private upload" through this route, so Reels are visible per your account's privacy: on a private account only your approved followers see them. Instagram posting uses an unofficial client, so keep `max_per_day` modest in context.json.
+
+Every Short is capped at **60 seconds** (change it with `MAX_DURATION_SECONDS` in `.env`) to keep processing and uploads quick.
+
+### Editing styles
+
+Two looks, switchable per run or globally:
+
+- `cinematic` (default): smooth, calm, 2s fade out. Good for scenic and serious content.
+- `brainrot`: slow push-in zoom, punchier colours, snappy 0.4s ending. Good for fast meme-style Reels.
+
+Set it with `EDIT_STYLE` in `.env`, `"editing_style"` in `context.json` (what the maker uses), or `--style brainrot` on a single run:
+```bash
+python3 scripts/run_pipeline.py --topic "ocean waves" --style brainrot
+```
 
 ### Channel logo watermark
 
@@ -139,7 +155,7 @@ Put your logo in `assets/channel_logo.png` and add this line to `.env`:
 LOGO_FILE=assets/channel_logo.png
 ```
 
-Every Short then carries your logo (bottom right by default). Tune it with `LOGO_POSITION` (bottom_right, bottom_left, top_right, top_left), `LOGO_WIDTH_PCT` (default 15), and `LOGO_OPACITY` (default 0.85). Use a transparent-background PNG; if your logo has a white background, see the note below on making one.
+Every Short then carries your logo (bottom right by default). Tune it with `LOGO_POSITION` (bottom_right, bottom_left, top_right, top_left), `LOGO_WIDTH_PCT` (default 15), and `LOGO_OPACITY` (default 0.85). Use a transparent-background PNG.
 
 ### Good to know
 - Uploads from a YouTube API project that hasn't passed Google's audit are locked to private. Request an audit if you want public Shorts.

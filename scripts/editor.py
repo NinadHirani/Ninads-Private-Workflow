@@ -37,10 +37,13 @@ def _timeout_sec() -> int:
     return value if value > 0 else 600
 
 
-def edit_video(input_path: str, output_path: str = None, duration: int = 30, logo: str = None) -> dict:
+def edit_video(input_path: str, output_path: str = None, duration: int = 30, logo: str = None, style: str = None) -> dict:
     if not os.path.exists(input_path):
         return {"status": "FAILED", "error": f"Input file not found: {input_path}"}
     logo = logo or os.getenv("LOGO_FILE") or ""
+    style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
+    if style not in ("cinematic", "brainrot"):
+        return {"status": "FAILED", "error": f"Unknown style '{style}'. Use cinematic or brainrot."}
     if logo and not os.path.exists(logo):
         return {"status": "FAILED", "error": f"Logo file not found: {logo}"}
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
@@ -58,6 +61,7 @@ def edit_video(input_path: str, output_path: str = None, duration: int = 30, log
     env = dict(os.environ)
     if logo:
         env["LOGO_FILE"] = os.path.abspath(logo)
+    env["EDIT_STYLE"] = style
     proc = subprocess.Popen(
         ["bash", FFMPEG_SCRIPT, input_path, output_path, str(duration)],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, env=env,
@@ -89,6 +93,7 @@ def edit_video(input_path: str, output_path: str = None, duration: int = 30, log
         "file_path": output_path,
         "file_size_bytes": file_size,
         "duration_sec": duration,
+        "style": style,
         "edit_time_sec": round(edit_duration, 2),
     }
 
@@ -99,9 +104,10 @@ def main():
     parser.add_argument("--output", type=str, default=None, help="Output edited video path")
     parser.add_argument("--duration", type=int, default=30, help="Target duration in seconds")
     parser.add_argument("--logo", type=str, default=None, help="Channel logo PNG to burn in as a watermark")
+    parser.add_argument("--style", type=str, default=None, choices=["cinematic", "brainrot"], help="Editing style (default: EDIT_STYLE or cinematic)")
     args = parser.parse_args()
 
-    result = edit_video(args.input, args.output, args.duration, logo=args.logo)
+    result = edit_video(args.input, args.output, args.duration, logo=args.logo, style=args.style)
     print(json.dumps(result, indent=2))
     if result["status"] != "SUCCESS":
         sys.exit(1)

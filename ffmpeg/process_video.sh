@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # FFmpeg Video Processing Script - AI Shorts Factory
-# Turns a raw clip into a 1080x1920 vertical YouTube Short: centre crop, trim,
-# loudness-normalised audio with a 2s fade out (or a silent track if the source has none).
+# Turns a raw clip into a 1080x1920 vertical Short or Reel: centre crop, trim,
+# loudness-normalised audio with a fade out (or a silent track if the source has none).
+# Styles (EDIT_STYLE): cinematic (smooth, default) or brainrot (push-in zoom,
+# punchier colours, snappy ending).
 
 set -euo pipefail
 
@@ -31,9 +33,28 @@ mkdir -p "$(dirname "$OUTPUT_FILE")"
 # Use the shorter of the requested length and the clip itself, so the fade lands at the real end.
 SOURCE_LEN=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$INPUT_FILE" 2>/dev/null || true)
 LEN=$(awk -v a="$DURATION" -v b="${SOURCE_LEN:-0}" 'BEGIN { if (b + 0 > 0 && b + 0 < a + 0) a = b; printf "%.2f", a }')
-FADE_START=$(awk -v l="$LEN" 'BEGIN { s = l - 2; if (s < 0) s = 0; printf "%.2f", s }')
+
+# Editing style: cinematic keeps the original smooth look; brainrot adds a slow
+# push-in zoom, punchier colours and a snappy 0.4s ending.
+STYLE="${EDIT_STYLE:-cinematic}"
+STYLE_VIDEO=""
+FADE_D="2"
+case "$STYLE" in
+    brainrot)
+        Z_EXPR="1+0.18*on/(30*${LEN})"
+        STYLE_VIDEO="zoompan=z=${Z_EXPR}:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2):d=1:s=1080x1920:fps=30,eq=saturation=1.35:contrast=1.12"
+        FADE_D="0.4"
+        ;;
+    cinematic|*)
+        ;;
+esac
+
+FADE_START=$(awk -v l="$LEN" -v d="$FADE_D" 'BEGIN { s = l - d; if (s < 0) s = 0; printf "%.2f", s }')
 
 VIDEO_FILTER="scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30"
+if [ -n "$STYLE_VIDEO" ]; then
+    VIDEO_FILTER="${VIDEO_FILTER},${STYLE_VIDEO}"
+fi
 
 # Optional channel-logo watermark on every Short (LOGO_FILE=path/to/logo.png).
 # Position: bottom_right (default), bottom_left, top_right, top_left. Width is a % of frame width.
@@ -61,7 +82,7 @@ else
 fi
 HAS_AUDIO=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$INPUT_FILE" 2>/dev/null | head -n 1 || true)
 
-echo "Processing video '$INPUT_FILE' -> '$OUTPUT_FILE' (${LEN}s, 1080x1920)..."
+echo "Processing video '$INPUT_FILE' -> '$OUTPUT_FILE' (${LEN}s, 1080x1920, style: ${STYLE})..."
 
 if [ -n "$HAS_AUDIO" ]; then
     ffmpeg -hide_banner -loglevel error -y \
@@ -69,7 +90,7 @@ if [ -n "$HAS_AUDIO" ]; then
         -t "$LEN" \
         "${VIDEO_MAP[@]}" -map 0:a:0 \
         "${LOGO_FILTER_ARGS[@]}" \
-        -af "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${FADE_START}:d=2" \
+        -af "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${FADE_START}:d=${FADE_D}" \
         -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p \
         -c:a aac -b:a 192k -ar 44100 \
         -movflags +faststart \

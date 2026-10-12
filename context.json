@@ -1,5 +1,9 @@
 {
   "context": "calming nature shorts with soft music",
-  "topics": ["ocean waves", "waterfall"],
-  "gap_minutes": 0
+  "topics": [
+    "ocean waves",
+    "waterfall"
+  ],
+  "gap_minutes": 0,
+  "editing_style": "cinematic"
 }
