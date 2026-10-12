@@ -49,6 +49,7 @@ def upload_to_youtube(
     privacy_status: str = "unlisted",
     tags: list = None,
     retries: int = 3,
+    publish_at: str = None,
 ) -> dict:
     if not os.path.exists(file_path):
         return {"status": "FAILED", "error": f"Video file not found: {file_path}"}
@@ -64,7 +65,8 @@ def upload_to_youtube(
             "video_id": mock_id,
             "youtube_url": f"https://youtube.com/shorts/{mock_id}",
             "title": title,
-            "privacy_status": privacy_status,
+            "privacy_status": "private" if publish_at else privacy_status,
+            "publish_at": publish_at,
             "upload_time_sec": 0,
             "mode": "MOCK",
         }
@@ -95,6 +97,13 @@ def upload_to_youtube(
             token_uri="https://oauth2.googleapis.com/token",
         )
         youtube = build("youtube", "v3", credentials=credentials)
+        status_body = {
+            "privacyStatus": "private" if publish_at else privacy_status,
+            "selfDeclaredMadeForKids": False,
+        }
+        if publish_at:
+            status_body["publishAt"] = publish_at
+
         body = {
             "snippet": {
                 "title": title[:100],
@@ -102,7 +111,7 @@ def upload_to_youtube(
                 "tags": tags,
                 "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "22"),  # 22 = People & Blogs
             },
-            "status": {"privacyStatus": privacy_status, "selfDeclaredMadeForKids": False},
+            "status": status_body,
         }
         media = MediaFileUpload(file_path, chunksize=8 * 1024 * 1024, resumable=True, mimetype="video/mp4")
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
@@ -114,6 +123,11 @@ def upload_to_youtube(
             try:
                 _, response = request.next_chunk()
             except HttpError as e:
+                # If YouTube rejects publishAt (e.g. unverified for scheduled publishing), fallback to private
+                if publish_at and ("publishAt" in str(e) or "scheduled" in str(e).lower()):
+                    logger.warning("YouTube rejected scheduled publishAt (%s). Retrying as private without schedule.", e)
+                    return upload_to_youtube(file_path, title, description, privacy_status="private",
+                                             tags=tags, retries=retries, publish_at=None)
                 if e.resp.status not in RETRIABLE_STATUS or failures >= retries:
                     raise
                 failures += 1
@@ -129,13 +143,14 @@ def upload_to_youtube(
         if "id" not in response:
             return {"status": "FAILED", "error": f"Unexpected YouTube response: {response}"}
         video_id = response["id"]
-        logger.info(f"Video uploaded successfully! Video ID: {video_id}")
+        logger.info(f"Video uploaded successfully! Video ID: {video_id} (privacy: {status_body['privacyStatus']}, publish_at: {publish_at})")
         return {
             "status": "SUCCESS",
             "video_id": video_id,
             "youtube_url": f"https://youtube.com/shorts/{video_id}",
             "title": title,
-            "privacy_status": privacy_status,
+            "privacy_status": status_body["privacyStatus"],
+            "publish_at": publish_at,
             "upload_time_sec": round(time.time() - start_time, 2),
             "mode": "PRODUCTION",
         }

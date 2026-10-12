@@ -100,6 +100,7 @@ def main():
     logger.info("Maker started: %d topic(s), gap %d min, uploads %s%s.",
                 len(topics), gap // 60, args.privacy,
                 f", max {max_per_day}/day" if max_per_day else "")
+    schedule_gap_min = int(config.get("schedule_public_gap_minutes", config.get("gap_minutes", 5)))
     next_topics = topic_iterator(topics)
 
     while not stop_requested():
@@ -113,19 +114,29 @@ def main():
 
         topic = next(next_topics)
         logger.info("Making a Short on '%s' (%d made before this one)...", topic, len(state["runs"]))
+
+        publish_at = None
+        if schedule_gap_min > 0:
+            publish_at = (datetime.datetime.now(datetime.timezone.utc) +
+                          datetime.timedelta(minutes=schedule_gap_min)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            logger.info("Scheduled publish: private until %s (%d min gap), then public", publish_at, schedule_gap_min)
+
         mode = (config.get("mode") or "clip").strip().lower()
         if mode == "story":
             from scripts.story_pipeline import run_story
             result = run_story(topic, duration=int(config.get("duration", 45)),
                                privacy=args.privacy,
-                               logo=os.getenv("LOGO_FILE") or None)
+                               logo=os.getenv("LOGO_FILE") or None,
+                               publish_at=publish_at)
         else:
-            result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None)
+            result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
+                         publish_at=publish_at)
         state["runs"].append({
             "at": datetime.datetime.now().isoformat(),
             "topic": topic,
             "status": result.get("status"),
             "youtube_url": result.get("youtube_url", ""),
+            "publish_at": publish_at,
             "instagram_url": result.get("instagram_url", ""),
             "error": result.get("error") or result.get("failed_step", ""),
         })

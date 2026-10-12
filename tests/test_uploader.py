@@ -15,6 +15,15 @@ def test_mock_upload(tmp_path):
     assert res["mode"] == "MOCK"
 
 
+def test_mock_upload_scheduled(tmp_path):
+    sched_time = "2026-10-12T12:00:00Z"
+    res = upload_to_youtube(_video(tmp_path), title="Test Short", privacy_status="private", publish_at=sched_time)
+    assert res["status"] == "SUCCESS"
+    assert res["mode"] == "MOCK"
+    assert res["publish_at"] == sched_time
+    assert res["privacy_status"] == "private"
+
+
 def test_missing_credentials_fail_instead_of_faking(tmp_path, monkeypatch):
     monkeypatch.delenv("SHORTS_MOCK")
     res = upload_to_youtube(_video(tmp_path))

@@ -36,13 +36,28 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
         logger.info("Voiceover made with edge-tts (%d words)", len(words or []))
         return {"status": "SUCCESS", "voice": "edge-tts", "file": wav, "words": words, "text": text}
     except Exception as exc:
-        logger.warning("edge-tts failed (%s); falling back to Piper", exc)
+        logger.warning("edge-tts failed (%s); trying fallback TTS", exc)
+    if shutil.which("say"):
+        try:
+            words = _macos_say(text, out_dir, wav)
+            logger.info("Voiceover made with macOS say")
+            return {"status": "SUCCESS", "voice": "macos-say", "file": wav, "words": words, "text": text}
+        except Exception as exc:
+            logger.warning("macOS say failed (%s); trying Piper", exc)
     try:
         words = _piper(text, wav)
         logger.info("Voiceover made with Piper (%d words)", len(words or []))
         return {"status": "SUCCESS", "voice": "piper", "file": wav, "words": words, "text": text}
     except Exception as exc:
         return {"status": "FAILED", "error": f"voiceover failed: {exc}"}
+
+
+def _macos_say(text: str, out_dir: str, wav: str) -> list:
+    aiff = os.path.join(out_dir, "vo.aiff")
+    subprocess.run(["say", "-o", aiff, text], check=True, timeout=60)
+    subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", aiff,
+                    "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
+    return []
 
 
 def _get_python():

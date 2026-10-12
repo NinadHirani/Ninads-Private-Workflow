@@ -1,10 +1,17 @@
 {
   "context": "calming nature shorts with soft music",
   "topics": [
-    "ocean waves",
-    "waterfall"
+    "waterfall in lush forest",
+    "ocean waves sunset",
+    "peaceful river stream",
+    "mountain mist timelapse",
+    "rain on green leaves",
+    "aurora borealis night sky",
+    "calm lake reflection",
+    "deep forest sunlight"
   ],
-  "gap_minutes": 2,
+  "gap_minutes": 5,
+  "schedule_public_gap_minutes": 5,
   "editing_style": "cinematic",
   "mode": "story",
   "duration": 45,

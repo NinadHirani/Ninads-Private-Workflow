@@ -174,7 +174,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
 
 
 def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_files: bool = False,
-              logo: str = None, n_clips: int = 3, on_progress = None) -> dict:
+              logo: str = None, n_clips: int = 3, publish_at: str = None, on_progress = None) -> dict:
     started = time.time()
     prod = produce_story(topic, duration=duration, logo=logo, n_clips=n_clips, on_progress=on_progress)
     if prod.get("status") != "SUCCESS":
@@ -187,7 +187,8 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
 
     from run_pipeline import publish_youtube_video, publish_instagram_video
     upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
-                                   tags=meta["tags"], privacy=privacy, on_progress=on_progress)
+                                   tags=meta["tags"], privacy=privacy, publish_at=publish_at,
+                                   on_progress=on_progress)
     steps["upload"] = upload
     if upload.get("status") != "SUCCESS":
         from run_pipeline import log_execution

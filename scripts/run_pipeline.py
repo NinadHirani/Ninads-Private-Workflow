@@ -126,14 +126,16 @@ def produce(topic: str, duration: int = 30, style: str = None, logo: str = None,
 
 
 def publish_youtube_video(file_path: str, title: str = "", description: str = "",
-                          tags: list = None, privacy: str = "private", on_progress = None) -> dict:
+                          tags: list = None, privacy: str = "private",
+                          publish_at: str = None, on_progress = None) -> dict:
     if callable(on_progress):
         try:
-            on_progress("upload", "running", f"YouTube ({privacy})")
+            status_label = f"YouTube ({privacy}, scheduled: {publish_at})" if publish_at else f"YouTube ({privacy})"
+            on_progress("upload", "running", status_label)
         except Exception:
             pass
     upload = upload_to_youtube(file_path, title=title, description=description,
-                               tags=tags or [], privacy_status=privacy)
+                               tags=tags or [], privacy_status=privacy, publish_at=publish_at)
     if callable(on_progress):
         try:
             on_progress("upload", "done" if upload.get("status") == "SUCCESS" else "failed")
@@ -163,7 +165,7 @@ def publish_instagram_video(file_path: str, caption: str = None, title: str = ""
 
 
 def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False,
-        logo: str = None, style: str = None, on_progress = None) -> dict:
+        logo: str = None, style: str = None, publish_at: str = None, on_progress = None) -> dict:
     started = time.time()
     style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
 
@@ -177,7 +179,8 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     meta = prod["metadata"]
 
     upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
-                                   tags=meta["tags"], privacy=privacy, on_progress=on_progress)
+                                   tags=meta["tags"], privacy=privacy, publish_at=publish_at,
+                                   on_progress=on_progress)
     steps["upload"] = upload
     if upload.get("status") != "SUCCESS":
         logger.error(f"Pipeline stopped at 'upload': {upload.get('error')}")
