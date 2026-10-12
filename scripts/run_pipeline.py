@@ -27,15 +27,20 @@ from scripts.editor import edit_video
 from scripts.logger import log_execution
 from scripts.metadata_generator import generate_metadata
 from scripts.uploader import upload_to_youtube
+from scripts.instagram_uploader import upload_to_instagram
 from scripts.validator import validate_video
 
 logger = logging.getLogger("run_pipeline")
 
 
-def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False, logo: str = None) -> dict:
+def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False, logo: str = None, style: str = None) -> dict:
     started = time.time()
     steps = {}
     raw_path = edited_path = None
+    # Hard cap of 60 seconds (override with MAX_DURATION_SECONDS in .env).
+    max_duration = int(os.getenv("MAX_DURATION_SECONDS", "60"))
+    duration = max(5, min(duration, max_duration))
+    style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
 
     def fail(step: str, error: str) -> dict:
         logger.error(f"Pipeline stopped at '{step}': {error}")
@@ -63,7 +68,7 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     if check.get("status") != "PASS":
         return fail("validate_raw", check.get("reason", "invalid source video"))
 
-    edit = edit_video(raw_path, duration=duration, logo=logo)
+    edit = edit_video(raw_path, duration=duration, logo=logo, style=style)
     steps["edit"] = edit
     if edit.get("status") != "SUCCESS":
         return fail("edit", edit.get("error", "edit failed"))
@@ -85,6 +90,15 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     if upload.get("status") != "SUCCESS":
         return fail("upload", upload.get("error", "upload failed"))
 
+    caption = f"{meta['title']}\n\n{meta['description']}"
+    tags = meta.get("tags") or []
+    if tags:
+        caption = f"{caption}\n\n" + " ".join(f"#{t.replace(' ', '')}" for t in tags[:10])
+    ig = upload_to_instagram(edited_path, caption=caption)
+    steps["upload_instagram"] = ig
+    if ig.get("status") != "SUCCESS":
+        logger.warning("Instagram post failed (YouTube is already up): %s", ig.get("error", ""))
+
     elapsed = round(time.time() - started, 2)
     log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
                   execution_time_sec=elapsed)
@@ -92,7 +106,8 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
         steps["archive"] = archive_processed_media(raw_path, edited_path)
 
     return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "youtube_url": upload["youtube_url"],
-            "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
+            "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+            "style": style, "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
 
 
 def main():
@@ -101,11 +116,12 @@ def main():
     parser.add_argument("--duration", type=int, default=30, help="Target length in seconds (max 180)")
     parser.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
     parser.add_argument("--keep-files", action="store_true", help="Leave the raw and edited files in place instead of archiving them")
+    parser.add_argument("--style", choices=["cinematic", "brainrot"], help="Editing style (default: EDIT_STYLE or cinematic)")
     args = parser.parse_args()
     if not 5 <= args.duration <= 180:
         parser.error("--duration must be between 5 and 180 seconds")
 
-    result = run(args.topic, args.duration, args.privacy, args.keep_files)
+    result = run(args.topic, args.duration, args.privacy, args.keep_files, style=args.style)
     print(json.dumps(result, indent=2))
     sys.exit(0 if result["status"] == "SUCCESS" else 1)
 

@@ -113,19 +113,21 @@ def main():
 
         topic = next(next_topics)
         logger.info("Making a Short on '%s' (%d made before this one)...", topic, len(state["runs"]))
-        result = run(topic, privacy=args.privacy)
+        result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None)
         state["runs"].append({
             "at": datetime.datetime.now().isoformat(),
             "topic": topic,
             "status": result.get("status"),
             "youtube_url": result.get("youtube_url", ""),
+            "instagram_url": result.get("instagram_url", ""),
             "error": result.get("error") or result.get("failed_step", ""),
         })
         state["runs"] = state["runs"][-200:]
         save_state(state)
 
         if result.get("status") == "SUCCESS":
-            logger.info("Uploaded %s -> %s", topic, result.get("youtube_url"))
+            logger.info("Uploaded %s -> %s (instagram: %s)", topic, result.get("youtube_url"),
+                        result.get("instagram") or "not posted")
         else:
             logger.warning("Run failed at %s: %s", result.get("failed_step"), result.get("error"))
 

@@ -3,7 +3,7 @@
 Shorts Control - AI Shorts Factory
 One-click control for the continuous Shorts maker:
 
-    python scripts/shortsctl.py connect          # connect your YouTube channel once
+    python scripts/shortsctl.py connect          # connect YouTube and Instagram once
     python scripts/shortsctl.py start            # start making + uploading Shorts (private)
     python scripts/shortsctl.py stop             # stop after the current Short finishes
     python scripts/shortsctl.py status           # what the maker has done so far
@@ -61,10 +61,15 @@ def load_state():
 
 def cmd_connect(args):
     sys.path.insert(0, ROOT)
-    from scripts.connect_youtube import connect
-    result = connect()
-    print(json.dumps(result, indent=2))
-    sys.exit(0 if result.get("status") == "SUCCESS" else 1)
+    results = {}
+    if args.platform in ("youtube", "both"):
+        from scripts.connect_youtube import connect
+        results["youtube"] = connect()
+    if args.platform in ("instagram", "both"):
+        from scripts.instagram_uploader import connect_instagram
+        results["instagram"] = connect_instagram()
+    print(json.dumps(results, indent=2))
+    sys.exit(0 if all(r.get("status") == "SUCCESS" for r in results.values()) else 1)
 
 
 def cmd_start(args):
@@ -118,6 +123,8 @@ def cmd_status(args):
         line = f"  {r.get('at', '')[:16]}  {r.get('topic')}  {r.get('status')}"
         if r.get("youtube_url"):
             line += f"  {r['youtube_url']}"
+        if r.get("instagram_url"):
+            line += f"  {r['instagram_url']}"
         print(line)
 
 
@@ -125,7 +132,8 @@ def main():
     parser = argparse.ArgumentParser(description="One-click control for AI Shorts Factory")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("connect", help="Connect your YouTube channel once (OAuth)")
+    p_connect = sub.add_parser("connect", help="Connect your YouTube and Instagram accounts once")
+    p_connect.add_argument("--platform", default="both", choices=["youtube", "instagram", "both"])
     p_start = sub.add_parser("start", help="Start making and uploading Shorts")
     p_start.add_argument("--context", default=CONTEXT_FILE, help=f"Path to context.json (default: {CONTEXT_FILE})")
     p_start.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
