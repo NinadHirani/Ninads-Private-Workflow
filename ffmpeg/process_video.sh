@@ -3,7 +3,7 @@
 # Turns a raw clip into a 1080x1920 vertical Short or Reel: centre crop, trim,
 # loudness-normalised audio with a fade out (or a silent track if the source has none).
 # Styles (EDIT_STYLE): cinematic (smooth, default) or brainrot (push-in zoom,
-# punchier colours, snappy ending).
+# punchier colours, deep-fried grain, big caption, snappy ending).
 
 set -euo pipefail
 
@@ -35,14 +35,28 @@ SOURCE_LEN=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=
 LEN=$(awk -v a="$DURATION" -v b="${SOURCE_LEN:-0}" 'BEGIN { if (b + 0 > 0 && b + 0 < a + 0) a = b; printf "%.2f", a }')
 
 # Editing style: cinematic keeps the original smooth look; brainrot adds a slow
-# push-in zoom, punchier colours and a snappy 0.4s ending.
+# push-in zoom, punchier colours, film grain, an optional big caption and a snappy 0.4s ending.
 STYLE="${EDIT_STYLE:-cinematic}"
 STYLE_VIDEO=""
 FADE_D="2"
 case "$STYLE" in
     brainrot)
         Z_EXPR="1+0.18*on/(30*${LEN})"
-        STYLE_VIDEO="zoompan=z=${Z_EXPR}:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2):d=1:s=1080x1920:fps=30,eq=saturation=1.35:contrast=1.12"
+        STYLE_VIDEO="zoompan=z=${Z_EXPR}:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2):d=1:s=1080x1920:fps=30,eq=saturation=1.45:contrast=1.25,rgbashift=rh=3:bv=-3,noise=alls=7:allf=t"
+        # Big meme-style caption (CAPTION_TEXT=topic or phrase), when a font is available.
+        CAPTION_TEXT="${CAPTION_TEXT:-}"
+        if [ -n "$CAPTION_TEXT" ]; then
+            SAFE_TEXT=$(printf '%s' "$CAPTION_TEXT" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9 !?&+.' | cut -c1-60)
+            FONT_FILE=""
+            [ -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf ] && FONT_FILE=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+            if [ -z "$FONT_FILE" ]; then
+                FONT_FILE=$(fc-match -f '%{file}' 'sans:bold' 2>/dev/null || true)
+            fi
+            # Only burn the caption when this ffmpeg build actually has drawtext.
+            if [ -n "$FONT_FILE" ] && [ -f "$FONT_FILE" ] && ffmpeg -hide_banner -filters 2>/dev/null | grep -qw drawtext; then
+                STYLE_VIDEO="${STYLE_VIDEO},drawtext=fontfile=${FONT_FILE}:text='${SAFE_TEXT}':fontsize=110:fontcolor=white:borderw=8:bordercolor=black:x=(w-text_w)/2:y=h-430"
+            fi
+        fi
         FADE_D="0.4"
         ;;
     cinematic|*)
