@@ -205,9 +205,9 @@ def cmd_stop(args):
 def cmd_status(args):
     state = load_state()
     runs = state.get("runs", [])
-    made = sum(1 for r in runs if r.get("status") == "SUCCESS")
+    made = sum(1 for r in runs if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL"))
     today = datetime.date.today().isoformat()
-    today_made = sum(1 for r in runs if r.get("status") == "SUCCESS" and r.get("at", "").startswith(today))
+    today_made = sum(1 for r in runs if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL") and r.get("at", "").startswith(today))
     running = daemon_running()
     pid = get_daemon_pid() if running else None
 
@@ -222,11 +222,122 @@ def cmd_status(args):
             line = f"  {r.get('at', '')[:16]}  {r.get('topic', '')}  [{r.get('status', 'UNKNOWN')}]"
             if r.get("youtube_url"):
                 line += f"  {r['youtube_url']}"
+            elif r.get("deliverable"):
+                line += f"  (saved: {os.path.basename(r['deliverable'])})"
             if r.get("instagram_url"):
                 line += f"  {r['instagram_url']}"
             if r.get("status") != "SUCCESS" and r.get("error"):
                 line += f"  ({r['error'][:50]})"
             print(line)
+
+
+def cmd_ui(args):
+    import scripts.web_ui as web_ui
+    web_ui.run_server(port=args.port, host=args.host)
+
+
+PLIST_LABEL = "com.shortsfactory.webui"
+PLIST_PATH = os.path.expanduser(f"~/Library/LaunchAgents/{PLIST_LABEL}.plist")
+
+
+def cmd_service(args):
+    action = args.action
+    python_bin = os.path.join(ROOT, ".venv", "bin", "python")
+    if not os.path.exists(python_bin):
+        python_bin = sys.executable
+
+    web_ui_script = os.path.join(ROOT, "scripts", "web_ui.py")
+    log_file = os.path.join(LOG_DIR, "web_ui.log")
+
+    if action == "install":
+        os.makedirs(os.path.dirname(PLIST_PATH), exist_ok=True)
+        os.makedirs(LOG_DIR, exist_ok=True)
+        plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{PLIST_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{python_bin}</string>
+        <string>{web_ui_script}</string>
+        <string>--port</string>
+        <string>{args.port}</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{ROOT}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{log_file}</string>
+    <key>StandardErrorPath</key>
+    <string>{log_file}</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:{ROOT}/.venv/bin</string>
+    </dict>
+</dict>
+</plist>
+"""
+        with open(PLIST_PATH, "w", encoding="utf-8") as f:
+            f.write(plist_content)
+
+        subprocess.run(["launchctl", "unload", PLIST_PATH], stderr=subprocess.DEVNULL)
+        res = subprocess.run(["launchctl", "load", "-w", PLIST_PATH], capture_output=True, text=True)
+        if res.returncode == 0:
+            print("Service successfully deployed & installed as LaunchAgent!")
+            print(f"Service Label: {PLIST_LABEL}")
+            print(f"Plist Path:    {PLIST_PATH}")
+            print(f"Mobile UI:     http://localhost:{args.port} or http://<lan-ip>:{args.port}")
+        else:
+            print(f"Launchctl warning: {res.stderr.strip()}")
+
+    elif action == "uninstall":
+        if os.path.exists(PLIST_PATH):
+            subprocess.run(["launchctl", "unload", PLIST_PATH], stderr=subprocess.DEVNULL)
+            os.remove(PLIST_PATH)
+            print("Service uninstalled and removed from LaunchAgents.")
+        else:
+            print("Service is not installed.")
+
+    elif action == "restart":
+        if os.path.exists(PLIST_PATH):
+            subprocess.run(["launchctl", "unload", PLIST_PATH], stderr=subprocess.DEVNULL)
+            time.sleep(0.5)
+            subprocess.run(["launchctl", "load", "-w", PLIST_PATH])
+            print("Service reloaded & restarted.")
+        else:
+            print("Service plist not found. Run 'python scripts/shortsctl.py service install' first.")
+
+    elif action == "status":
+        res = subprocess.run(["launchctl", "list"], capture_output=True, text=True)
+        found = [line for line in res.stdout.splitlines() if PLIST_LABEL in line]
+        if found:
+            print(f"Service '{PLIST_LABEL}' is ACTIVE (launchd):")
+            print("  PID\tStatus\tLabel")
+            print("  " + found[0])
+        else:
+            print(f"Service '{PLIST_LABEL}' is NOT loaded in launchd.")
+
+
+def cmd_tunnel(args):
+    port = args.port
+    print("=" * 60)
+    print("  🌐 SECURE HTTPS TUNNEL FOR VERCEL MOBILE APP")
+    print(f"  Target: http://localhost:{port}")
+    print("=" * 60)
+    print("Starting secure tunnel... Copy the HTTPS URL into your Vercel Settings.")
+    print("Press Ctrl+C to stop tunnel.")
+    try:
+        subprocess.run(["npx", "-y", "localtunnel", "--port", str(port)])
+    except KeyboardInterrupt:
+        print("\nTunnel closed.")
 
 
 def main():
@@ -240,9 +351,28 @@ def main():
     p_start.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
     sub.add_parser("stop", help="Stop the maker immediately")
     sub.add_parser("status", help="Show what has been made and maker state")
+    p_ui = sub.add_parser("ui", help="Start mobile web control center")
+    p_ui.add_argument("--port", type=int, default=8088, help="Port to listen on (default: 8088)")
+    p_ui.add_argument("--host", type=str, default="0.0.0.0", help="Host binding (default: 0.0.0.0)")
+
+    p_service = sub.add_parser("service", help="Manage permanent background daemon service (launchd)")
+    p_service.add_argument("action", choices=["install", "uninstall", "restart", "status"], help="Action to execute")
+    p_service.add_argument("--port", type=int, default=8088, help="Port for the service (default: 8088)")
+
+    p_tunnel = sub.add_parser("tunnel", help="Open a secure HTTPS tunnel to connect from Vercel")
+    p_tunnel.add_argument("--port", type=int, default=8088, help="Port to tunnel (default: 8088)")
 
     args = parser.parse_args()
-    {"connect": cmd_connect, "start": cmd_start, "stop": cmd_stop, "status": cmd_status}[args.command](args)
+    handlers = {
+        "connect": cmd_connect,
+        "start": cmd_start,
+        "stop": cmd_stop,
+        "status": cmd_status,
+        "ui": cmd_ui,
+        "service": cmd_service,
+        "tunnel": cmd_tunnel,
+    }
+    handlers[args.command](args)
 
 
 if __name__ == "__main__":

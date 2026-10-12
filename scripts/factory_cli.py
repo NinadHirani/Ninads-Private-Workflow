@@ -142,7 +142,7 @@ def handle_publish(args) -> int:
             privacy=privacy,
             on_progress=emit_step,
         )
-        if yt_res.get("status") != "SUCCESS":
+        if platform == "youtube" and yt_res.get("status") != "SUCCESS":
             return emit_result({
                 "status": "FAILED",
                 "failed_step": "upload",
@@ -166,6 +166,13 @@ def handle_publish(args) -> int:
                 "platform": "instagram",
                 "error": ig_res.get("error", "Instagram upload failed"),
             })
+
+    if platform == "both" and (yt_res or {}).get("status") != "SUCCESS" and (ig_res or {}).get("status") != "SUCCESS":
+        return emit_result({
+            "status": "FAILED",
+            "failed_step": "upload",
+            "error": f"YouTube: {(yt_res or {}).get('error')}; Instagram: {(ig_res or {}).get('error')}",
+        })
 
     res = {
         "status": "SUCCESS",

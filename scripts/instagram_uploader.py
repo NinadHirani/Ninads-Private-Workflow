@@ -116,10 +116,35 @@ def upload_to_instagram(
                       "Set SHORTS_MOCK=1 for a dry run."),
         }
 
+    thumb_path = None
+    created_thumb = False
+    try:
+        import subprocess
+        candidate = f"{file_path}.ig_thumb.jpg"
+        res = subprocess.run(
+            ["ffmpeg", "-y", "-ss", "00:00:01", "-i", file_path, "-vframes", "1", "-q:v", "2", candidate],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if res.returncode == 0 and os.path.exists(candidate):
+            thumb_path = candidate
+            created_thumb = True
+    except Exception:
+        pass
+
     try:
         cl = _new_client()
         _login(cl, username, password)
-        media = cl.clip_upload(file_path, caption=caption, share_to_feed=share_to_feed)
+        try:
+            if thumb_path:
+                media = cl.clip_upload(file_path, caption=caption, thumbnail=thumb_path, share_to_feed=share_to_feed)
+            else:
+                media = cl.clip_upload(file_path, caption=caption, share_to_feed=share_to_feed)
+        except TypeError:
+            if thumb_path:
+                media = cl.clip_upload(file_path, caption=caption, thumbnail=thumb_path)
+            else:
+                media = cl.clip_upload(file_path, caption=caption)
         code = getattr(media, "code", "") or ""
         logger.info(f"Reel posted to Instagram. Code: {code}")
         return {
@@ -132,6 +157,12 @@ def upload_to_instagram(
     except Exception as e:
         logger.error(f"Instagram upload failed: {e}")
         return {"status": "FAILED", "error": str(e)}
+    finally:
+        if created_thumb and thumb_path and os.path.exists(thumb_path):
+            try:
+                os.remove(thumb_path)
+            except OSError:
+                pass
 
 
 def main():

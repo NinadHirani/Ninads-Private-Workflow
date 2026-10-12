@@ -43,8 +43,130 @@ def init_db():
             error_message TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS used_assets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id TEXT UNIQUE,
+            provider TEXT,
+            topic TEXT,
+            used_at TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS used_topics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic_normalized TEXT UNIQUE,
+            original_topic TEXT,
+            used_at TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
+
+def mark_asset_used(asset_id: str, provider: str = "", topic: str = "") -> bool:
+    if not asset_id:
+        return False
+    init_db()
+    now = datetime.datetime.now().isoformat()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR IGNORE INTO used_assets (asset_id, provider, topic, used_at)
+            VALUES (?, ?, ?, ?)
+        ''', (str(asset_id), provider, topic, now))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to record used asset {asset_id}: {e}")
+        return False
+
+def is_asset_used(asset_id: str) -> bool:
+    if not asset_id:
+        return False
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1 FROM used_assets WHERE asset_id = ?', (str(asset_id),))
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+    except Exception as e:
+        logger.error(f"Failed to check used asset {asset_id}: {e}")
+        return False
+
+def get_used_asset_ids() -> set:
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT asset_id FROM used_assets')
+        rows = cursor.fetchall()
+        conn.close()
+        return {r[0] for r in rows if r[0]}
+    except Exception as e:
+        logger.error(f"Failed to get used asset IDs: {e}")
+        return set()
+
+def normalize_topic(topic: str) -> str:
+    import re
+    cleaned = re.sub(r'[^a-z0-9]+', ' ', (topic or '').lower()).strip()
+    return cleaned
+
+def mark_topic_used(topic: str) -> bool:
+    if not topic:
+        return False
+    init_db()
+    norm = normalize_topic(topic)
+    if not norm:
+        return False
+    now = datetime.datetime.now().isoformat()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR IGNORE INTO used_topics (topic_normalized, original_topic, used_at)
+            VALUES (?, ?, ?)
+        ''', (norm, topic.strip(), now))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to mark topic used {topic}: {e}")
+        return False
+
+def is_topic_used(topic: str) -> bool:
+    if not topic:
+        return False
+    init_db()
+    norm = normalize_topic(topic)
+    if not norm:
+        return False
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1 FROM used_topics WHERE topic_normalized = ?', (norm,))
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+    except Exception as e:
+        logger.error(f"Failed to check used topic {topic}: {e}")
+        return False
+
+def get_used_topics() -> set:
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT topic_normalized FROM used_topics')
+        rows = cursor.fetchall()
+        conn.close()
+        return {r[0] for r in rows if r[0]}
+    except Exception as e:
+        logger.error(f"Failed to get used topics: {e}")
+        return set()
 
 def log_execution(
     topic: str,

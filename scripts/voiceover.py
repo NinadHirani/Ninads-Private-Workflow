@@ -17,7 +17,12 @@ import urllib.request
 
 logger = logging.getLogger("voiceover")
 
-VOICE = os.getenv("VOICEOVER_VOICE", "en-US-BrianNeural")
+VOICES_FALLBACK = [
+    os.getenv("VOICEOVER_VOICE", "en-US-BrianNeural"),
+    "en-US-ChristopherNeural",
+    "en-US-GuyNeural",
+    "en-US-EricNeural",
+]
 PIPER_MODEL = os.getenv("PIPER_MODEL", "")
 PIPER_DIR = os.getenv("PIPER_DIR", os.path.join(tempfile.gettempdir(), "piper-voices"))
 PIPER_VOICE_URL = ("https://huggingface.co/rhasspy/piper-voices/resolve/main/"
@@ -31,25 +36,48 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
         return {"status": "FAILED", "error": "empty script"}
     os.makedirs(out_dir, exist_ok=True)
     wav = os.path.join(out_dir, "voiceover.wav")
-    try:
-        words = _edge(text, out_dir, wav)
-        logger.info("Voiceover made with edge-tts (%d words)", len(words or []))
-        return {"status": "SUCCESS", "voice": "edge-tts", "file": wav, "words": words, "text": text}
-    except Exception as exc:
-        logger.warning("edge-tts failed (%s); trying fallback TTS", exc)
+
+    # 1. Primary: edge-tts with retry & voice rotation
+    for attempt, voice_name in enumerate(VOICES_FALLBACK):
+        try:
+            words = _edge(text, out_dir, wav, voice=voice_name)
+            logger.info("Voiceover made with edge-tts (%s, %d words)", voice_name, len(words or []))
+            return {"status": "SUCCESS", "voice": f"edge-tts:{voice_name}", "file": wav, "words": words, "text": text}
+        except Exception as exc:
+            logger.warning("edge-tts failed on attempt %d (%s) with voice %s; trying next",
+                           attempt + 1, exc, voice_name)
+            time.sleep(1.0)
+
+    # 2. Fallback: macOS say (if available on macOS)
     if shutil.which("say"):
         try:
             words = _macos_say(text, out_dir, wav)
-            logger.info("Voiceover made with macOS say")
+            logger.info("Voiceover made with macOS say fallback")
             return {"status": "SUCCESS", "voice": "macos-say", "file": wav, "words": words, "text": text}
         except Exception as exc:
-            logger.warning("macOS say failed (%s); trying Piper", exc)
+            logger.warning("macOS say failed (%s); trying Piper if installed", exc)
+
+    # 3. Fallback: Piper local neural voice (only if piper is actually installed)
+    if _piper_available():
+        try:
+            words = _piper(text, wav)
+            logger.info("Voiceover made with Piper (%d words)", len(words or []))
+            return {"status": "SUCCESS", "voice": "piper", "file": wav, "words": words, "text": text}
+        except Exception as exc:
+            logger.warning("Piper failed: %s", exc)
+
+    return {"status": "FAILED", "error": "all TTS methods failed (edge-tts, say, piper)"}
+
+
+def _piper_available() -> bool:
+    if shutil.which("piper"):
+        return True
     try:
-        words = _piper(text, wav)
-        logger.info("Voiceover made with Piper (%d words)", len(words or []))
-        return {"status": "SUCCESS", "voice": "piper", "file": wav, "words": words, "text": text}
-    except Exception as exc:
-        return {"status": "FAILED", "error": f"voiceover failed: {exc}"}
+        py = _get_python()
+        res = subprocess.run([py, "-c", "import piper"], capture_output=True)
+        return res.returncode == 0
+    except Exception:
+        return False
 
 
 def _macos_say(text: str, out_dir: str, wav: str) -> list:
@@ -66,11 +94,12 @@ def _get_python():
     return venv_py if os.path.exists(venv_py) else sys.executable
 
 
-def _edge(text: str, out_dir: str, wav: str) -> list:
+def _edge(text: str, out_dir: str, wav: str, voice: str = None) -> list:
     mp3 = os.path.join(out_dir, "vo.mp3")
     vtt = os.path.join(out_dir, "vo.vtt")
     py = _get_python()
-    subprocess.run([py, "-m", "edge_tts", "--voice", VOICE, "--text", text,
+    target_voice = voice or VOICES_FALLBACK[0]
+    subprocess.run([py, "-m", "edge_tts", "--voice", target_voice, "--text", text,
                     "--write-media", mp3, "--write-subtitles", vtt],
                    check=True, capture_output=True, timeout=120)
     words = _parse_vtt(vtt)

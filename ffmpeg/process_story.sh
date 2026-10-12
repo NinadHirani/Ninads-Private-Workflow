@@ -57,7 +57,7 @@ done
 CONCAT_IN=""
 for k in $(seq 0 $((N - 1))); do CONCAT_IN+="[v$k]"; done
 FILTER+="${CONCAT_IN}concat=n=${N}:v=1:a=0[cat];"
-FILTER+="[cat]eq=saturation=1.4:contrast=1.2,rgbashift=rh=3:bv=-3,noise=alls=6:allf=t[fx];"
+FILTER+="[cat]eq=saturation=1.3:contrast=1.15,rgbashift=rh=2:bv=-2[fx];"
 LAST="[fx]"
 if [ -n "$ASS" ] && [ -f "$ASS" ] && ffmpeg -hide_banner -filters 2>/dev/null | grep -qw subtitles; then
     ASS_ESC=$(printf '%s' "$ASS" | sed "s/:/\\\\:/g")
@@ -85,7 +85,7 @@ ffmpeg -hide_banner -loglevel error -y \
     -map "[vout]" -map "${VO_IDX}:a" \
     -t "$LEN" \
     -af "loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st=${FADE_START}:d=0.5" \
-    -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p \
+    -c:v libx264 -preset fast -crf 22 -maxrate 6M -bufsize 12M -pix_fmt yuv420p \
     -c:a aac -b:a 192k -ar 44100 \
     -movflags +faststart \
     "$OUT"

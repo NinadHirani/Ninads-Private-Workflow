@@ -18,7 +18,8 @@ import time
 import argparse
 import logging
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 from scripts.archive import archive_processed_media
 from scripts.content_finder import find_videos, rank_and_select_video, mock_mode, real_key
@@ -178,23 +179,62 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     raw_path = prod["raw_path"]
     meta = prod["metadata"]
 
+    deliverables_dir = os.path.join(ROOT, "deliverables")
+    os.makedirs(deliverables_dir, exist_ok=True)
+    import datetime
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    clean_topic = "".join(c if c.isalnum() else "_" for c in topic)[:30].strip("_")
+    deliverable_video = os.path.join(deliverables_dir, f"short_{clean_topic}_{ts}.mp4")
+    deliverable_meta = os.path.join(deliverables_dir, f"short_{clean_topic}_{ts}.json")
+    import shutil
+    shutil.copy2(edited_path, deliverable_video)
+    with open(deliverable_meta, "w", encoding="utf-8") as f:
+        json.dump({
+            "topic": topic,
+            "created_at": datetime.datetime.now().isoformat(),
+            "metadata": meta,
+            "duration": duration,
+            "deliverable_video": deliverable_video,
+            "privacy": privacy,
+            "publish_at": publish_at,
+        }, f, indent=2)
+
     upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
                                    tags=meta["tags"], privacy=privacy, publish_at=publish_at,
                                    on_progress=on_progress)
     steps["upload"] = upload
-    if upload.get("status") != "SUCCESS":
-        logger.error(f"Pipeline stopped at 'upload': {upload.get('error')}")
-        log_execution(topic, "FAILED", os.path.basename(edited_path),
-                      execution_time_sec=round(time.time() - started, 2),
-                      error_message=f"upload: {upload.get('error')}")
-        return {"status": "FAILED", "failed_step": "upload", "error": upload.get("error", "upload failed"),
-                "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
     ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
                                  tags=meta["tags"], on_progress=on_progress)
     steps["upload_instagram"] = ig
     if ig.get("status") != "SUCCESS":
-        logger.warning("Instagram post failed (YouTube is already up): %s", ig.get("error", ""))
+        logger.warning("Instagram post failed: %s", ig.get("error", ""))
+
+    if upload.get("status") == "QUOTA_EXCEEDED":
+        elapsed = round(time.time() - started, 2)
+        logger.warning("YouTube quota exceeded. Short preserved in deliverables/: %s", deliverable_video)
+        log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
+                      execution_time_sec=elapsed)
+        return {"status": "SUCCESS", "mode": "LOCAL_QUEUE", "topic": topic, "style": style,
+                "youtube_url": "", "deliverable_file": deliverable_video,
+                "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+                "queue_reason": "YouTube daily quota reached", "privacy": privacy,
+                "total_time_sec": elapsed, "steps": steps}
+
+    if upload.get("status") != "SUCCESS":
+        logger.error(f"Pipeline stopped at 'upload': {upload.get('error')}")
+        log_status = "SUCCESS" if ig.get("status") == "SUCCESS" else "FAILED"
+        log_execution(topic, log_status, os.path.basename(edited_path),
+                      execution_time_sec=round(time.time() - started, 2),
+                      error_message=f"upload: {upload.get('error')}")
+        if ig.get("status") == "SUCCESS":
+            return {"status": "SUCCESS", "mode": "PRODUCTION", "topic": topic,
+                    "youtube_url": "", "deliverable_file": deliverable_video,
+                    "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+                    "style": style, "privacy": privacy, "total_time_sec": round(time.time() - started, 2), "steps": steps}
+        return {"status": "FAILED", "failed_step": "upload", "error": upload.get("error", "upload failed"),
+                "deliverable_file": deliverable_video,
+                "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
     elapsed = round(time.time() - started, 2)
     log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
@@ -203,6 +243,7 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
         steps["archive"] = archive_processed_media(raw_path, edited_path)
 
     return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "youtube_url": upload["youtube_url"],
+            "deliverable_file": deliverable_video,
             "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
             "style": style, "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
 

@@ -7,6 +7,8 @@ downloads/*.mp4
 edited/*.mp4
 archive/*.mp4
 tests/*.mp4
+deliverables/*.mp4
+deliverables/*.json
 logs/*.log
 logs/*.db
 logs/*.csv
@@ -32,3 +34,5 @@ client_secret*.json
 .DS_Store
 .vscode/
 .idea/
+node_modules/
+**/node_modules/

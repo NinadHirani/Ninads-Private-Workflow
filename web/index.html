@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Shorts Factory | Mobile Studio & Control Center</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Shorts Factory">
+  <meta name="theme-color" content="#090b10">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090b10;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-green: #10b981;
+      --accent-green-glow: rgba(16, 185, 129, 0.25);
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.25);
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 20px);
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 90%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #ef4444, #f59e0b);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+    }
+
+    .brand-name {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #ffffff, #d1d5db);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--card-border);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.active {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+
+    .status-badge.stopped {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-badge.active .status-dot {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .status-badge.stopped .status-dot {
+      background: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+
+    /* PWA Install Button */
+    .btn-install {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.25));
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c4b5fd;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      margin-left: 8px;
+    }
+    .btn-install:active {
+      transform: scale(0.96);
+    }
+    .btn-install.installed {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+
+    /* Install Instructions Modal */
+    .install-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .install-modal.open {
+      display: flex;
+    }
+    .install-dialog {
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 24px;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    .modal-desc {
+      font-size: 14px;
+      color: #9ca3af;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .modal-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #e5e7eb;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #3b82f6;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .modal-btn-done {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background: #3b82f6;
+      color: #fff;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    /* Navigation Tabs */
+    .tab-bar {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .tab-btn.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Content Area */
+    .tab-content {
+      display: none;
+      flex: 1;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Studio Creator Card */
+    .studio-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 18px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .studio-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .studio-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .genre-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #e5e7eb;
+      transition: all 0.3s ease;
+    }
+
+    .genre-badge.anime {
+      background: rgba(234, 179, 8, 0.2);
+      border-color: rgba(234, 179, 8, 0.5);
+      color: #fde047;
+      box-shadow: 0 0 14px rgba(234, 179, 8, 0.25);
+    }
+
+    .genre-badge.gaming {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #34d399;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+    }
+
+    .genre-badge.scifi_lore {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.5);
+      color: #38bdf8;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+    }
+
+    .genre-badge.facts_mystery {
+      background: rgba(244, 114, 182, 0.2);
+      border-color: rgba(244, 114, 182, 0.5);
+      color: #f472b6;
+      box-shadow: 0 0 14px rgba(244, 114, 182, 0.25);
+    }
+
+    .genre-badge.nature {
+      background: rgba(52, 211, 153, 0.2);
+      border-color: rgba(52, 211, 153, 0.5);
+      color: #6ee7b7;
+      box-shadow: 0 0 14px rgba(52, 211, 153, 0.25);
+    }
+
+    .studio-input {
+      width: 100%;
+      background: rgba(10, 14, 24, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-md);
+      padding: 15px 16px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 500;
+      outline: none;
+      transition: all 0.2s ease;
+      margin-bottom: 12px;
+    }
+
+    .studio-input:focus {
+      border-color: #818cf8;
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
+    }
+
+    .chips-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 18px;
+    }
+
+    .chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .chip:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .options-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .opt-group {
+      flex: 1;
+    }
+
+    .opt-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .opt-select {
+      width: 100%;
+      background: rgba(10, 14, 24, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+
+    .btn-create-spark {
+      width: 100%;
+      padding: 17px;
+      border: none;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #6366f1, #8b5cf6 60%, #ec4899);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      box-shadow: 0 4px 22px rgba(99, 102, 241, 0.45);
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-create-spark:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 28px rgba(99, 102, 241, 0.6);
+    }
+
+    .btn-create-spark:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Live Studio Progress Stepper */
+    .studio-progress-card {
+      display: none;
+      background: rgba(18, 24, 38, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+
+    .studio-progress-card.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .prog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .prog-topic {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .prog-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: #818cf8;
+      background: rgba(99, 102, 241, 0.15);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    .prog-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+
+    .prog-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6366f1, #10b981);
+      border-radius: 5px;
+      transition: width 0.4s ease;
+    }
+
+    .stepper-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+
+    .step-item.current {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .step-item.done {
+      color: #34d399;
+    }
+
+    .step-indicator {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .step-item.current .step-indicator {
+      background: #6366f1;
+      color: #fff;
+      box-shadow: 0 0 10px #6366f1;
+      animation: pulse 1.5s infinite;
+    }
+
+    .step-item.done .step-indicator {
+      background: #10b981;
+      color: #fff;
+    }
+
+    /* Result Card */
+    .result-card {
+      display: none;
+      background: rgba(16, 185, 129, 0.09);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .result-card.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .result-player-wrapper {
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 14px 0;
+      background: #000;
+      aspect-ratio: 9 / 16;
+      max-height: 440px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .result-player {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Hero Maker Card */
+    .hero-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      backdrop-filter: blur(16px);
+      margin-bottom: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-toggle {
+      width: 100%;
+      padding: 15px;
+      border-radius: var(--radius-md);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle.start {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      box-shadow: 0 6px 24px var(--accent-green-glow);
+    }
+
+    .btn-toggle.stop {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: #ffffff;
+      box-shadow: 0 6px 24px var(--accent-red-glow);
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .kpi-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .kpi-num {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    /* Pipeline Tracker */
+    .pipeline-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      backdrop-filter: blur(16px);
+      margin-bottom: 16px;
+    }
+
+    .pipeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .pipeline-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pipeline-current-topic {
+      font-size: 12px;
+      color: #60a5fa;
+      font-weight: 600;
+      max-width: 60%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pipeline-steps {
+      display: flex;
+      gap: 4px;
+      position: relative;
+    }
+
+    .pipe-step {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .pipe-step.done {
+      background: #10b981;
+    }
+
+    .pipe-step.current {
+      background: #3b82f6;
+      box-shadow: 0 0 10px #3b82f6;
+      animation: pulse 1.5s infinite;
+    }
+
+    .pipeline-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .pipeline-detail {
+      font-size: 12px;
+      color: #d1d5db;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Gallery */
+    .gallery-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-bottom: 24px;
+    }
+
+    .video-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .video-preview-wrapper {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 9 / 16;
+      max-height: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-preview-wrapper video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .video-topic {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .video-duration {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Terminal */
+    .terminal-card {
+      background: rgba(10, 14, 24, 0.95);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #a7f3d0;
+      min-height: 320px;
+      max-height: 520px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .terminal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .terminal-title {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* Settings */
+    .settings-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      backdrop-filter: blur(16px);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .form-textarea {
+      width: 100%;
+      height: 100px;
+      background: rgba(10, 14, 24, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      background: rgba(10, 14, 24, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .btn-save {
+      width: 100%;
+      padding: 12px;
+      background: #3b82f6;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡️</div>
+      <div class="brand-name">Shorts Factory</div>
+      <button id="installAppBtn" class="btn-install" onclick="handleInstallClick()">
+        <span>📲</span> <span id="installBtnText">Install App</span>
+      </button>
+    </div>
+    <div id="statusBadge" class="status-badge stopped">
+      <div class="status-dot"></div>
+      <span id="statusText">STOPPED</span>
+    </div>
+  </header>
+
+  <!-- PWA Install Modal -->
+  <div id="installModal" class="install-modal" onclick="closeInstallModal(event)">
+    <div class="install-dialog" onclick="event.stopPropagation()">
+      <div class="modal-title">Install Shorts Factory</div>
+      <div class="modal-desc">Install this dashboard on your home screen for full-screen native access with one tap:</div>
+      <div class="modal-step">
+        <div class="step-num">1</div>
+        <div class="step-text">Tap the <strong>Share</strong> button (📤) in Safari or Chrome toolbar.</div>
+      </div>
+      <div class="modal-step">
+        <div class="step-num">2</div>
+        <div class="step-text">Scroll down and tap <strong>Add to Home Screen</strong> (➕).</div>
+      </div>
+      <div class="modal-step">
+        <div class="step-num">3</div>
+        <div class="step-text">Tap <strong>Add</strong> in the top right corner.</div>
+      </div>
+      <button class="modal-btn-done" onclick="closeInstallModal()">Got it</button>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('creator')">✨ Studio</button>
+    <button class="tab-btn" onclick="switchTab('deliverables')">📹 Shorts</button>
+    <button class="tab-btn" onclick="switchTab('autopilot')">🤖 Auto-Pilot</button>
+    <button class="tab-btn" onclick="switchTab('logs')">📜 Live Logs</button>
+    <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
+  </div>
+
+  <!-- TAB 1: CREATOR STUDIO (DEFAULT) -->
+  <div id="tab-creator" class="tab-content active">
+    <div class="studio-card">
+      <div class="studio-header">
+        <div class="studio-title">
+          <span>⚡️</span> Instant Short Creator
+        </div>
+        <div id="detectedGenreBadge" class="genre-badge anime">
+          ⚡️ Anime Detected
+        </div>
+      </div>
+
+      <input
+        id="studioTopicInput"
+        type="text"
+        class="studio-input"
+        placeholder="Type any word or topic: e.g. one-punch man anime..."
+        value="one-punch man anime"
+      />
+
+      <div class="chips-label">Quick Suggestions:</div>
+      <div class="chips-row">
+        <div class="chip" onclick="setStudioTopic('one-punch man anime')">🥊 One-Punch Man</div>
+        <div class="chip" onclick="setStudioTopic('jujutsu kaisen gojo infinity')">👁️ Gojo Infinity</div>
+        <div class="chip" onclick="setStudioTopic('dark matter space paradox')">🌌 Dark Matter</div>
+        <div class="chip" onclick="setStudioTopic('elden ring secret lore')">🗡️ Elden Ring Lore</div>
+        <div class="chip" onclick="setStudioTopic('stoic mindset under pressure')">🏛️ Stoic Mindset</div>
+        <div class="chip" onclick="setStudioTopic('aurora borealis northern lights')">✨ Aurora Nature</div>
+      </div>
+
+      <div class="options-row">
+        <div class="opt-group">
+          <label class="opt-label">Duration</label>
+          <select id="studioDuration" class="opt-select">
+            <option value="30">30 Seconds</option>
+            <option value="45" selected>45 Seconds (Optimal)</option>
+            <option value="60">60 Seconds</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label class="opt-label">Privacy</label>
+          <select id="studioPrivacy" class="opt-select">
+            <option value="private" selected>Private (Check First)</option>
+            <option value="public">Public (Instant Release)</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="studioAutoUpload" checked />
+        <span>Auto-upload to YouTube Shorts & Instagram upon Remotion render</span>
+      </label>
+
+      <button id="btnCreateShort" class="btn-create-spark" onclick="triggerCreateShort()">
+        <span>🚀</span> <span>Create Short with Remotion</span>
+      </button>
+    </div>
+
+    <!-- Active Generation Stepper -->
+    <div id="studioProgressCard" class="studio-progress-card">
+      <div class="prog-header">
+        <div id="progTopicTitle" class="prog-topic">Generating Short...</div>
+        <div id="progStatusLabel" class="prog-badge">IN PROGRESS</div>
+      </div>
+      <div class="prog-bar-bg">
+        <div id="progBarFill" class="prog-bar-fill"></div>
+      </div>
+      <div id="progDetailText" style="font-size:12px; color:#cbd5e1; margin-bottom:12px;">Initializing...</div>
+
+      <div class="stepper-list">
+        <div id="step-genre" class="step-item current">
+          <div class="step-indicator">1</div>
+          <span>Genre & Story Angle Classification</span>
+        </div>
+        <div id="step-script-ui" class="step-item">
+          <div class="step-indicator">2</div>
+          <span>High-Retention AI Script</span>
+        </div>
+        <div id="step-voice" class="step-item">
+          <div class="step-indicator">3</div>
+          <span>Neural Edge-TTS Voiceover</span>
+        </div>
+        <div id="step-scenes-ui" class="step-item">
+          <div class="step-indicator">4</div>
+          <span>1080x1920 AI Visual Scenes</span>
+        </div>
+        <div id="step-render-ui" class="step-item">
+          <div class="step-indicator">5</div>
+          <span>Remotion Engine 1080x1920 Render</span>
+        </div>
+        <div id="step-upload-ui" class="step-item">
+          <div class="step-indicator">6</div>
+          <span>YouTube & Instagram Direct Upload</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Completed Video Result Card -->
+    <div id="studioResultCard" class="result-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:16px; font-weight:800; color:#34d399;">🎉 Short Ready & Published!</span>
+        <button onclick="resetStudio()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:13px; font-weight:600;">Create Another</button>
+      </div>
+
+      <div class="result-player-wrapper">
+        <video id="resultVideoPlayer" class="result-player" controls playsinline></video>
+      </div>
+
+      <div id="resultMetaInfo" style="font-size:13px; color:#e2e8f0; line-height:1.5;"></div>
+    </div>
+  </div>
+
+  <!-- TAB 2: DELIVERABLES GALLERY -->
+  <div id="tab-deliverables" class="tab-content">
+    <div id="galleryList" class="gallery-list">
+      <div class="empty-state">Loading generated Shorts...</div>
+    </div>
+  </div>
+
+  <!-- TAB 3: AUTO-PILOT MAKER -->
+  <div id="tab-autopilot" class="tab-content">
+    <div class="hero-card">
+      <button id="toggleBtn" class="btn-toggle start" onclick="toggleMaker()">
+        ▶ Start Auto-Pilot Maker
+      </button>
+      <div class="kpi-row">
+        <div class="kpi-item">
+          <div id="todayCount" class="kpi-num">0</div>
+          <div class="kpi-label">Today</div>
+        </div>
+        <div class="kpi-item">
+          <div id="totalCount" class="kpi-num">0</div>
+          <div class="kpi-label">Total</div>
+        </div>
+        <div class="kpi-item">
+          <div id="modePill" class="kpi-num" style="font-size: 15px; padding-top: 6px;">REMOTION</div>
+          <div class="kpi-label">Engine</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline-card">
+      <div class="pipeline-header">
+        <span class="pipeline-title">Live Pipeline</span>
+        <span id="currentTopic" class="pipeline-current-topic">Idle</span>
+      </div>
+      <div class="pipeline-steps">
+        <div id="step-script" class="pipe-step"></div>
+        <div id="step-captions" class="pipe-step"></div>
+        <div id="step-clips" class="pipe-step"></div>
+        <div id="step-render" class="pipe-step"></div>
+        <div id="step-upload" class="pipe-step"></div>
+      </div>
+      <div class="pipeline-labels">
+        <span>Script</span>
+        <span>Audio</span>
+        <span>Visuals</span>
+        <span>Remotion</span>
+        <span>Upload</span>
+      </div>
+      <div id="pipelineDetail" class="pipeline-detail">
+        <span>●</span> <span>Maker is idle</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: LIVE LOGS -->
+  <div id="tab-logs" class="tab-content">
+    <div class="terminal-card">
+      <div class="terminal-header">
+        <span class="terminal-title">Console Output (auto.log)</span>
+        <button onclick="fetchLogs()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:12px;">Refresh</button>
+      </div>
+      <div id="terminalBody" class="terminal-body">Connecting to logs...</div>
+    </div>
+  </div>
+
+  <!-- TAB 5: SETTINGS -->
+  <div id="tab-settings" class="tab-content">
+    <div class="settings-card">
+      <div class="form-group">
+        <label class="form-label">Auto-Pilot Topics (One per line)</label>
+        <textarea id="topicsInput" class="form-textarea" placeholder="one-punch man anime&#10;dark matter mystery&#10;cyberpunk city"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Gap Minutes</label>
+          <input id="gapInput" type="number" class="form-input" min="0" max="60" value="1">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Duration (sec)</label>
+          <input id="durationInput" type="number" class="form-input" min="10" max="60" value="45">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Upload Destination</label>
+        <select id="uploadInput" class="form-select">
+          <option value="true">YouTube & Instagram (Direct Publish)</option>
+          <option value="false">Local Deliverables Only</option>
+        </select>
+      </div>
+      <button class="btn-save" onclick="saveSettings()">Save Settings</button>
+
+      <div class="form-group" style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--card-border);">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>⚡ Mac Factory Host</span>
+          <span id="connStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(255,255,255,0.06); color:#9ca3af;">Checking...</span>
+        </label>
+        <input id="apiBaseInput" type="text" class="form-input" placeholder="e.g. https://your-tunnel.loca.lt or http://10.83.93.253:8088">
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button type="button" class="btn-save" style="flex:1; padding:8px 12px; font-size:13px; background:#4f46e5;" onclick="saveApiBase()">Connect Host</button>
+          <button type="button" class="btn-save" style="background:rgba(255,255,255,0.08); padding:8px 12px; font-size:13px;" onclick="resetApiBase()">Reset Local</button>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+          When opening on Vercel via cellular/mobile, run <code>python scripts/shortsctl.py tunnel</code> on your Mac and paste the HTTPS URL here.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Remote / Local API Gateway
+    let apiBase = localStorage.getItem('shorts_factory_api_base') || '';
+
+    function apiUrl(path) {
+      if (!apiBase) return path;
+      return apiBase.replace(/\/+$/, '') + path;
+    }
+
+    function apiFetch(path, options = {}) {
+      options.headers = Object.assign({
+        'Bypass-Tunnel-Reminder': 'true'
+      }, options.headers || {});
+      return fetch(apiUrl(path), options);
+    }
+
+    function saveApiBase() {
+      const val = document.getElementById('apiBaseInput').value.trim();
+      localStorage.setItem('shorts_factory_api_base', val);
+      apiBase = val;
+      checkConnectionHealth();
+      fetchStatus();
+      fetchDeliverables();
+      alert(val ? 'Host configured! Connected to ' + val : 'Reset to local origin.');
+    }
+
+    function resetApiBase() {
+      localStorage.removeItem('shorts_factory_api_base');
+      apiBase = '';
+      document.getElementById('apiBaseInput').value = '';
+      checkConnectionHealth();
+      fetchStatus();
+      fetchDeliverables();
+      alert('Reset to local origin.');
+    }
+
+    async function checkConnectionHealth() {
+      const badge = document.getElementById('connStatusBadge');
+      if (!badge) return;
+      try {
+        const res = await apiFetch('/api/status');
+        const data = await res.json();
+        badge.style.background = 'rgba(16, 185, 129, 0.15)';
+        badge.style.color = '#34d399';
+        badge.innerText = `Connected (${data.running ? 'PID ' + data.pid : 'Standby'})`;
+      } catch (e) {
+        badge.style.background = 'rgba(239, 68, 68, 0.15)';
+        badge.style.color = '#f87171';
+        badge.innerText = 'Offline / Unreachable';
+      }
+    }
+
+    // PWA & Installation Handling
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('installAppBtn');
+    const installBtnText = document.getElementById('installBtnText');
+    const installModal = document.getElementById('installModal');
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(console.warn);
+      });
+    }
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone && installBtn) {
+      installBtn.classList.add('installed');
+      if (installBtnText) installBtnText.innerText = 'App Installed';
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installBtn && !isStandalone) installBtn.style.display = 'inline-flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredPrompt = null;
+      if (installBtn) {
+        installBtn.classList.add('installed');
+        if (installBtnText) installBtnText.innerText = 'App Installed';
+      }
+    });
+
+    async function handleInstallClick() {
+      if (isStandalone) {
+        alert('Shorts Factory is already running as an installed shortcut app!');
+        return;
+      }
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          if (installBtn) installBtn.classList.add('installed');
+          deferredPrompt = null;
+        }
+      } else {
+        openInstallModal();
+      }
+    }
+
+    function openInstallModal() {
+      if (installModal) installModal.classList.add('open');
+    }
+
+    function closeInstallModal(e) {
+      if (e && e.target !== installModal) return;
+      if (installModal) installModal.classList.remove('open');
+    }
+
+    let isMakerRunning = false;
+    let autoScrollLogs = true;
+    let isCreatingShort = false;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.toLowerCase().includes(tabId.slice(0, 4)));
+      if (targetBtn) targetBtn.classList.add('active');
+      
+      const targetContent = document.getElementById('tab-' + tabId);
+      if (targetContent) targetContent.classList.add('active');
+
+      if (tabId === 'logs') fetchLogs();
+      if (tabId === 'deliverables') fetchDeliverables();
+      if (tabId === 'settings') fetchSettings();
+    }
+
+    // Live Genre Auto-Detection on Topic Input
+    const studioInput = document.getElementById('studioTopicInput');
+    const genreBadge = document.getElementById('detectedGenreBadge');
+
+    let classifyDebounce = null;
+    studioInput.addEventListener('input', () => {
+      clearTimeout(classifyDebounce);
+      classifyDebounce = setTimeout(updateGenreClassification, 250);
+    });
+
+    async function updateGenreClassification() {
+      const topic = studioInput.value.trim();
+      if (!topic) {
+        genreBadge.className = 'genre-badge';
+        genreBadge.innerText = 'Topic Required';
+        return;
+      }
+      try {
+        const res = await apiFetch('/api/classify?topic=' + encodeURIComponent(topic));
+        const data = await res.json();
+        genreBadge.className = 'genre-badge ' + (data.category || 'general');
+        const icon = data.category === 'anime' ? '⚡️' : data.category === 'gaming' ? '🎮' : data.category === 'scifi_lore' ? '🌌' : data.category === 'nature' ? '🌿' : '💡';
+        genreBadge.innerText = `${icon} ${data.category.toUpperCase()} DETECTED`;
+      } catch (e) {}
+    }
+
+    function setStudioTopic(topic) {
+      studioInput.value = topic;
+      updateGenreClassification();
+    }
+
+    // Trigger 1-Click Short Creation
+    async function triggerCreateShort() {
+      const topic = studioInput.value.trim();
+      if (!topic) return alert('Please enter a topic or keyword!');
+
+      const duration = parseInt(document.getElementById('studioDuration').value || 45);
+      const privacy = document.getElementById('studioPrivacy').value || 'private';
+      const autoUpload = document.getElementById('studioAutoUpload').checked;
+
+      const createBtn = document.getElementById('btnCreateShort');
+      createBtn.disabled = true;
+      createBtn.innerHTML = '<span>⏳</span> <span>Generating Video...</span>';
+
+      const progressCard = document.getElementById('studioProgressCard');
+      progressCard.classList.add('active');
+      document.getElementById('progTopicTitle').innerText = topic;
+      document.getElementById('studioResultCard').classList.remove('active');
+
+      try {
+        const res = await apiFetch('/api/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic,
+            duration,
+            privacy,
+            upload: autoUpload,
+          }),
+        });
+        const data = await res.json();
+        if (data.status === 'STARTED') {
+          isCreatingShort = true;
+          pollCreationProgress();
+        } else {
+          alert('Error starting generation: ' + (data.error || 'Unknown'));
+          createBtn.disabled = false;
+          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
+          progressCard.classList.remove('active');
+        }
+      } catch (err) {
+        alert('Network error: ' + err);
+        createBtn.disabled = false;
+        createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
+        progressCard.classList.remove('active');
+      }
+    }
+
+    // Poll Progress of Creation
+    async function pollCreationProgress() {
+      if (!isCreatingShort) return;
+      try {
+        const res = await apiFetch('/api/create/status');
+        const state = await res.json();
+
+        const barFill = document.getElementById('progBarFill');
+        const detailText = document.getElementById('progDetailText');
+        const statusLabel = document.getElementById('progStatusLabel');
+
+        detailText.innerText = state.detail || state.step || 'Processing...';
+
+        // Step highlights
+        const steps = ['genre', 'script-ui', 'voice', 'scenes-ui', 'render-ui', 'upload-ui'];
+        let progressPercent = 10;
+        let activeIdx = 0;
+
+        if (state.step === 'classify') { activeIdx = 0; progressPercent = 15; }
+        else if (state.step === 'script') { activeIdx = 1; progressPercent = 30; }
+        else if (state.step === 'voiceover') { activeIdx = 2; progressPercent = 45; }
+        else if (state.step === 'scenes') { activeIdx = 3; progressPercent = 65; }
+        else if (state.step === 'edit' || state.step === 'render') { activeIdx = 4; progressPercent = 85; }
+        else if (state.step === 'upload' || state.step === 'upload_instagram') { activeIdx = 5; progressPercent = 95; }
+
+        barFill.style.width = progressPercent + '%';
+
+        steps.forEach((s, idx) => {
+          const el = document.getElementById('step-' + s);
+          if (el) {
+            el.className = 'step-item ' + (idx < activeIdx ? 'done' : idx === activeIdx ? 'current' : '');
+          }
+        });
+
+        if (!state.active) {
+          isCreatingShort = false;
+          const createBtn = document.getElementById('btnCreateShort');
+          createBtn.disabled = false;
+          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
+
+          if (state.status === 'done' && state.result) {
+            barFill.style.width = '100%';
+            statusLabel.innerText = 'COMPLETED';
+            statusLabel.style.color = '#34d399';
+            steps.forEach(s => {
+              const el = document.getElementById('step-' + s);
+              if (el) el.className = 'step-item done';
+            });
+
+            // Show result card
+            showCreationResult(state.result);
+            fetchDeliverables();
+          } else {
+            statusLabel.innerText = 'FAILED';
+            statusLabel.style.color = '#f87171';
+            detailText.innerText = 'Failed: ' + (state.error || 'Unknown error');
+          }
+          return;
+        }
+
+        setTimeout(pollCreationProgress, 1200);
+      } catch (err) {
+        setTimeout(pollCreationProgress, 2000);
+      }
+    }
+
+    function showCreationResult(res) {
+      const resultCard = document.getElementById('studioResultCard');
+      resultCard.classList.add('active');
+
+      const player = document.getElementById('resultVideoPlayer');
+      const filename = (res.deliverable_file || '').split('/').pop();
+      if (filename) {
+        player.src = '/deliverables/' + filename;
+      }
+
+      const metaEl = document.getElementById('resultMetaInfo');
+      const ytUrl = res.youtube_url ? `<a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline;">Watch on YouTube (${res.privacy})</a>` : 'Saved in deliverables';
+      const igStatus = res.instagram ? `<span style="margin-left:12px; color:#f472b6;">Instagram: ${res.instagram}</span>` : '';
+
+      metaEl.innerHTML = `
+        <div style="font-weight:700; margin-bottom:4px;">${res.topic}</div>
+        <div style="color:#94a3b8; font-size:12px; margin-bottom:8px;">Rendered in ${res.total_time_sec || 0}s • Style: ${res.style || 'Anime'} • Engine: Remotion</div>
+        <div style="margin-top:6px;">${ytUrl} ${igStatus}</div>
+      `;
+    }
+
+    function resetStudio() {
+      document.getElementById('studioResultCard').classList.remove('active');
+      document.getElementById('studioProgressCard').classList.remove('active');
+      document.getElementById('btnCreateShort').disabled = false;
+      document.getElementById('btnCreateShort').innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
+    }
+
+    // Auto-pilot status & actions
+    async function fetchStatus() {
+      try {
+        const res = await apiFetch('/api/status');
+        const data = await res.json();
+        isMakerRunning = !!data.running;
+        
+        const badge = document.getElementById('statusBadge');
+        const badgeText = document.getElementById('statusText');
+        const toggleBtn = document.getElementById('toggleBtn');
+        
+        if (isMakerRunning) {
+          badge.className = 'status-badge active';
+          badgeText.innerText = `ACTIVE (${data.pid || 'ON'})`;
+          toggleBtn.className = 'btn-toggle stop';
+          toggleBtn.innerHTML = '⏹ Stop Auto-Pilot Maker';
+        } else {
+          badge.className = 'status-badge stopped';
+          badgeText.innerText = 'STOPPED';
+          toggleBtn.className = 'btn-toggle start';
+          toggleBtn.innerHTML = '▶ Start Auto-Pilot Maker';
+        }
+
+        document.getElementById('todayCount').innerText = data.today_made || 0;
+        document.getElementById('totalCount').innerText = data.total_made || 0;
+
+        if (data.pipeline) {
+          document.getElementById('currentTopic').innerText = data.pipeline.topic || 'Idle';
+          document.getElementById('pipelineDetail').innerHTML = `<span>●</span> <span>${data.pipeline.detail || 'Idle'}</span>`;
+          const stages = ['script', 'captions', 'clips', 'render', 'upload'];
+          const cur = data.pipeline.stage;
+          let curIdx = stages.indexOf(cur);
+          if (cur === 'upload_success') curIdx = 5;
+          stages.forEach((s, idx) => {
+            const el = document.getElementById('step-' + s);
+            if (!el) return;
+            el.className = 'pipe-step ' + (idx < curIdx ? 'done' : idx === curIdx ? 'current' : '');
+          });
+        }
+      } catch (e) {}
+    }
+
+    async function toggleMaker() {
+      const toggleBtn = document.getElementById('toggleBtn');
+      toggleBtn.disabled = true;
+      try {
+        const endpoint = isMakerRunning ? '/api/maker/stop' : '/api/maker/start';
+        await apiFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        setTimeout(fetchStatus, 600);
+      } catch (e) {
+        alert('Action failed: ' + e);
+      } finally {
+        toggleBtn.disabled = false;
+      }
+    }
+
+    async function fetchDeliverables() {
+      try {
+        const res = await apiFetch('/api/deliverables');
+        const data = await res.json();
+        const list = document.getElementById('galleryList');
+        if (!data.items || data.items.length === 0) {
+          list.innerHTML = '<div style="text-align:center; padding:30px; color:#9ca3af;">No Shorts generated yet. Create one above!</div>';
+          return;
+        }
+        list.innerHTML = data.items.map(it => {
+          const mediaUrl = it.url.startsWith('http') ? it.url : apiUrl(it.url);
+          return `
+          <div class="video-card">
+            <div class="video-preview-wrapper">
+              <video src="${mediaUrl}" controls playsinline preload="metadata"></video>
+            </div>
+            <div class="video-meta-row">
+              <div class="video-topic">${it.topic}</div>
+              <div class="video-duration">${it.duration}s • ${it.style || 'Anime'}</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#94a3b8;">
+              <span>${new Date(it.created_at).toLocaleDateString()}</span>
+              <a href="${mediaUrl}" download style="color:#60a5fa; text-decoration:none; font-weight:600;">⬇ Download MP4</a>
+            </div>
+          </div>
+        `;
+        }).join('');
+      } catch (e) {}
+    }
+
+    async function fetchLogs() {
+      try {
+        const res = await apiFetch('/api/logs?lines=60');
+        const data = await res.json();
+        const el = document.getElementById('terminalBody');
+        el.innerText = (data.lines || []).join('');
+        if (autoScrollLogs) el.scrollTop = el.scrollHeight;
+      } catch (e) {}
+    }
+
+    async function fetchSettings() {
+      try {
+        const res = await apiFetch('/api/config');
+        const data = await res.json();
+        const cfg = data.config || {};
+        if (cfg.topics) document.getElementById('topicsInput').value = cfg.topics.join('\n');
+        if (cfg.gap_minutes !== undefined) document.getElementById('gapInput').value = cfg.gap_minutes;
+        if (cfg.duration !== undefined) document.getElementById('durationInput').value = cfg.duration;
+      } catch (e) {}
+    }
+
+    async function saveSettings() {
+      const topics = document.getElementById('topicsInput').value.split('\n').map(t => t.trim()).filter(Boolean);
+      const gap_minutes = parseInt(document.getElementById('gapInput').value || 1);
+      const duration = parseInt(document.getElementById('durationInput').value || 45);
+      try {
+        const res = await apiFetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topics, gap_minutes, duration }),
+        });
+        if (res.ok) alert('Settings saved successfully!');
+      } catch (e) {
+        alert('Failed to save settings: ' + e);
+      }
+    }
+
+    // Initialize
+    updateGenreClassification();
+    fetchStatus();
+    fetchDeliverables();
+    setInterval(fetchStatus, 3000);
+    setInterval(() => {
+      if (document.getElementById('tab-logs').classList.contains('active')) fetchLogs();
+    }, 3000);
+  </script>
+</body>
+</html>

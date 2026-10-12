@@ -1,6 +1,12 @@
 # AI Shorts Factory 🎬⚡
 
-Production-ready YouTube Shorts automation platform built with Docker, n8n, Python, FFmpeg, and YouTube Data API v3.
+[![Live Web App](https://img.shields.io/badge/Live%20Mobile%20App-Vercel-black?style=for-the-badge&logo=vercel)](https://shorts-factory-olive.vercel.app)
+[![PWA](https://img.shields.io/badge/Mobile-Installable%20PWA-blue?style=for-the-badge&logo=pwa)](https://shorts-factory-olive.vercel.app)
+
+> 📱 **Live Mobile Control Center**: [https://shorts-factory-olive.vercel.app](https://shorts-factory-olive.vercel.app)  
+> Install to your iPhone or Android home screen with 1 tap using the built-in **"Install App"** shortcut button.
+
+Production-ready YouTube Shorts & Instagram Reels automation platform built with Remotion, Docker, n8n, Python, FFmpeg, and YouTube Data API v3.
 
 ## Overview
 

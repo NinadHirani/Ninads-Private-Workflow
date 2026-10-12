@@ -46,11 +46,21 @@ def _get_json(url: str, headers: dict = None, timeout: int = 10) -> dict:
         return json.loads(response.read().decode())
 
 
-def search_pexels(topic: str, per_page: int = 15) -> list:
+try:
+    from scripts.logger import get_used_asset_ids, is_asset_used
+except ImportError:
+    try:
+        from logger import get_used_asset_ids, is_asset_used
+    except ImportError:
+        def get_used_asset_ids(): return set()
+        def is_asset_used(asset_id): return False
+
+
+def search_pexels(topic: str, per_page: int = 15, page: int = 1) -> list:
     api_key = real_key("PEXELS_API_KEY")
     if not api_key:
         return []
-    query = urllib.parse.urlencode({"query": topic, "orientation": "portrait", "per_page": per_page})
+    query = urllib.parse.urlencode({"query": topic, "orientation": "portrait", "per_page": per_page, "page": page})
     try:
         data = _get_json(f"{PEXELS_API_URL}?{query}", {"Authorization": api_key})
     except Exception as e:
@@ -59,12 +69,12 @@ def search_pexels(topic: str, per_page: int = 15) -> list:
     return data.get("videos", [])
 
 
-def search_pixabay(topic: str, per_page: int = 15) -> list:
+def search_pixabay(topic: str, per_page: int = 15, page: int = 1) -> list:
     """Pixabay results, reshaped to look like Pexels videos so one ranking function handles both."""
     api_key = real_key("PIXABAY_API_KEY")
     if not api_key:
         return []
-    query = urllib.parse.urlencode({"key": api_key, "q": topic, "per_page": per_page, "safesearch": "true"})
+    query = urllib.parse.urlencode({"key": api_key, "q": topic, "per_page": per_page, "page": page, "safesearch": "true"})
     try:
         data = _get_json(f"{PIXABAY_API_URL}?{query}")
     except Exception as e:
@@ -86,13 +96,13 @@ def search_pixabay(topic: str, per_page: int = 15) -> list:
     return videos
 
 
-def find_videos(topic: str) -> list:
+def find_videos(topic: str, page: int = 1) -> list:
     if mock_mode():
         logger.warning("SHORTS_MOCK is on: using the local sample video.")
         return get_mock_candidates(topic)
-    videos = search_pexels(topic)
+    videos = search_pexels(topic, page=page)
     if not videos:
-        videos = search_pixabay(topic)
+        videos = search_pixabay(topic, page=page)
     return videos
 
 
@@ -115,15 +125,21 @@ def _pick_file(video_files: list):
     return best, bool(portrait)
 
 
-def rank_and_select_video(videos: list):
-    """The best candidate, or None when nothing fits (wrong length or no downloadable file)."""
+def rank_and_select_video(videos: list, exclude_used: bool = True):
+    """The best candidate, skipping any previously used video assets to avoid repetition."""
+    used_ids = get_used_asset_ids() if exclude_used else set()
     candidates = []
     for video in videos or []:
+        vid_id = str(video.get("id"))
+        if exclude_used and (vid_id in used_ids or f"pexels_{vid_id}" in used_ids or f"pixabay_{vid_id}" in used_ids):
+            continue
         duration = video.get("duration", 0) or 0
         if duration < MIN_DURATION or duration > MAX_DURATION:
             continue
         best_file, is_portrait = _pick_file(video.get("video_files", []))
         if not best_file:
+            continue
+        if exclude_used and best_file.get("link") in used_ids:
             continue
         width, height = _dims(best_file)
         candidates.append(((is_portrait, width * height, -abs(30 - duration)), {
@@ -138,6 +154,19 @@ def rank_and_select_video(videos: list):
         return None
     candidates.sort(key=lambda c: c[0], reverse=True)
     return candidates[0][1]
+
+
+def find_fresh_candidate(topic: str, max_pages: int = 5) -> dict:
+    """Searches across pages to find a video candidate that has never been used."""
+    if mock_mode():
+        return rank_and_select_video(find_videos(topic), exclude_used=False)
+    for p in range(1, max_pages + 1):
+        videos = find_videos(topic, page=p)
+        candidate = rank_and_select_video(videos, exclude_used=True)
+        if candidate:
+            return candidate
+    logger.info("All candidates in first %d pages were previously used or unfit.", max_pages)
+    return None
 
 
 def get_mock_candidates(topic: str) -> list:
@@ -168,7 +197,7 @@ def main():
         print(json.dumps({"status": "FAILED", "error": error}))
         sys.exit(1)
 
-    best_candidate = rank_and_select_video(find_videos(args.topic))
+    best_candidate = find_fresh_candidate(args.topic)
     if not best_candidate:
         logger.error("No valid video candidate found.")
         print(json.dumps({"status": "FAILED", "error": f"No usable {MIN_DURATION}-{MAX_DURATION}s video found for '{args.topic}'"}))

@@ -119,26 +119,40 @@ def upload_to_youtube(
         start_time = time.time()
         response = None
         failures = 0
-        while response is None:
-            try:
-                _, response = request.next_chunk()
-            except HttpError as e:
-                # If YouTube rejects publishAt (e.g. unverified for scheduled publishing), fallback to private
-                if publish_at and ("publishAt" in str(e) or "scheduled" in str(e).lower()):
-                    logger.warning("YouTube rejected scheduled publishAt (%s). Retrying as private without schedule.", e)
-                    return upload_to_youtube(file_path, title, description, privacy_status="private",
-                                             tags=tags, retries=retries, publish_at=None)
-                if e.resp.status not in RETRIABLE_STATUS or failures >= retries:
-                    raise
-                failures += 1
-                logger.warning(f"YouTube returned {e.resp.status}, retrying ({failures}/{retries})")
-                time.sleep(2 ** failures)
-            except (OSError, TimeoutError) as e:
-                if failures >= retries:
-                    raise
-                failures += 1
-                logger.warning(f"Network error during upload ({e}), retrying ({failures}/{retries})")
-                time.sleep(2 ** failures)
+        import socket
+        old_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(120)
+        try:
+            while response is None:
+                try:
+                    _, response = request.next_chunk()
+                except HttpError as e:
+                    # If YouTube rejects publishAt (e.g. unverified for scheduled publishing), fallback to private
+                    if publish_at and ("publishAt" in str(e) or "scheduled" in str(e).lower()):
+                        logger.warning("YouTube rejected scheduled publishAt (%s). Retrying as private without schedule.", e)
+                        return upload_to_youtube(file_path, title, description, privacy_status="private",
+                                                 tags=tags, retries=retries, publish_at=None)
+                    err_content = str(e).lower()
+                    if (e.resp.status in (400, 403)) and any(k in err_content for k in ("quotaexceeded", "uploadlimitexceeded", "daily limit", "exceeded the number of videos")):
+                        logger.warning("YouTube daily upload quota or upload limit reached: %s", e)
+                        return {
+                            "status": "QUOTA_EXCEEDED",
+                            "error": "YouTube daily upload limit exceeded (channel limit or quota reached).",
+                            "quota_exceeded": True,
+                        }
+                    if e.resp.status not in RETRIABLE_STATUS or failures >= retries:
+                        raise
+                    failures += 1
+                    logger.warning(f"YouTube returned {e.resp.status}, retrying ({failures}/{retries})")
+                    time.sleep(2 ** failures)
+                except (OSError, TimeoutError, socket.timeout) as e:
+                    if failures >= retries:
+                        raise
+                    failures += 1
+                    logger.warning(f"Network error during upload ({e}), retrying ({failures}/{retries})")
+                    time.sleep(2 ** failures)
+        finally:
+            socket.setdefaulttimeout(old_timeout)
 
         if "id" not in response:
             return {"status": "FAILED", "error": f"Unexpected YouTube response: {response}"}

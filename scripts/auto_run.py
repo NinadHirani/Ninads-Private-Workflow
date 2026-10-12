@@ -87,13 +87,31 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
+MODIFIERS = [
+    "",
+    "golden hour",
+    "peaceful morning",
+    "aerial view",
+    "crystal clear",
+    "serene timelapse",
+    "calm ambient",
+    "sunlight rays",
+]
+
+
 def topic_iterator(topics):
-    """Rotate through the topics, reshuffled each full pass, so runs vary."""
+    """Rotate through the topics with dynamic variations, reshuffled each pass so runs vary."""
+    idx = 0
     while True:
         order = list(topics)
         random.shuffle(order)
-        for topic in order:
-            yield topic
+        for base in order:
+            mod = MODIFIERS[idx % len(MODIFIERS)]
+            idx += 1
+            if mod and mod not in base.lower():
+                yield f"{base} {mod}".strip()
+            else:
+                yield base.strip()
 
 
 def main():
@@ -108,6 +126,7 @@ def main():
     topics = [t.strip() for t in config.get("topics", []) if t and t.strip()]
     gap = max(0, int(config.get("gap_minutes", 5))) * 60
     max_per_day = int(config.get("max_per_day", 0)) or None
+    upload_enabled = bool(config.get("upload", True) and not config.get("local_only", False))
     if not topics:
         logger.error("context.json has no topics; nothing to make.")
         return
@@ -116,8 +135,9 @@ def main():
     state["started_at"] = state.get("started_at") or datetime.datetime.now().isoformat()
     save_state(state)
 
-    logger.info("Maker started: %d topic(s), gap %d min, uploads %s%s.",
-                len(topics), gap // 60, args.privacy,
+    logger.info("Maker started: %d topic(s), gap %d min, uploads %s%s (local deliverables active).",
+                len(topics), gap // 60,
+                args.privacy if upload_enabled else "OFF (local only)",
                 f", max {max_per_day}/day" if max_per_day else "")
     schedule_gap_min = int(config.get("schedule_public_gap_minutes", config.get("gap_minutes", 5)))
     next_topics = topic_iterator(topics)
@@ -125,7 +145,7 @@ def main():
     while not stop_requested():
         today = datetime.date.today().isoformat()
         today_made = sum(1 for r in state["runs"]
-                         if r.get("status") == "SUCCESS" and r.get("at", "").startswith(today))
+                         if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL") and r.get("at", "").startswith(today))
         if max_per_day and today_made >= max_per_day:
             logger.info("Daily cap %d reached. Sleeping 30 minutes.", max_per_day)
             time.sleep(1800)
@@ -135,7 +155,7 @@ def main():
         logger.info("Making a Short on '%s' (%d made before this one)...", topic, len(state["runs"]))
 
         publish_at = None
-        if schedule_gap_min > 0:
+        if upload_enabled and schedule_gap_min > 0:
             publish_at = (datetime.datetime.now(datetime.timezone.utc) +
                           datetime.timedelta(minutes=schedule_gap_min)).strftime("%Y-%m-%dT%H:%M:%SZ")
             logger.info("Scheduled publish: private until %s (%d min gap), then public", publish_at, schedule_gap_min)
@@ -146,25 +166,34 @@ def main():
             result = run_story(topic, duration=int(config.get("duration", 45)),
                                privacy=args.privacy,
                                logo=os.getenv("LOGO_FILE") or None,
-                               publish_at=publish_at)
+                               publish_at=publish_at,
+                               upload=upload_enabled)
         else:
             result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
                          publish_at=publish_at)
+
+        is_success = result.get("status") in ("SUCCESS", "SUCCESS_LOCAL")
+        deliverable = result.get("deliverable_file", "")
         state["runs"].append({
             "at": datetime.datetime.now().isoformat(),
             "topic": topic,
-            "status": result.get("status"),
+            "status": "SUCCESS" if is_success else "FAILED",
             "youtube_url": result.get("youtube_url", ""),
+            "deliverable": deliverable,
             "publish_at": publish_at,
             "instagram_url": result.get("instagram_url", ""),
-            "error": result.get("error") or result.get("failed_step", ""),
+            "error": result.get("queue_reason") or result.get("error") or result.get("failed_step", ""),
         })
         state["runs"] = state["runs"][-200:]
         save_state(state)
 
-        if result.get("status") == "SUCCESS":
-            logger.info("Uploaded %s -> %s (instagram: %s)", topic, result.get("youtube_url"),
-                        result.get("instagram") or "not posted")
+        if is_success:
+            if result.get("youtube_url"):
+                logger.info("Uploaded %s -> %s (saved: %s)", topic, result.get("youtube_url"), deliverable)
+            elif result.get("queue_reason"):
+                logger.info("Created Short on '%s' -> %s (%s)", topic, deliverable, result.get("queue_reason"))
+            else:
+                logger.info("Created Short on '%s' -> %s", topic, deliverable)
         else:
             logger.warning("Run failed at %s: %s", result.get("failed_step"), result.get("error"))
 
@@ -176,7 +205,7 @@ def main():
             time.sleep(1)
 
     logger.info("Maker stopped. Total Shorts made this session: %d.",
-                sum(1 for r in state["runs"] if r.get("status") == "SUCCESS"))
+                sum(1 for r in state["runs"] if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL")))
 
 
 if __name__ == "__main__":

