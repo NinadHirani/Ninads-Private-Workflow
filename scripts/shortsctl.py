@@ -4,12 +4,12 @@ Shorts Control - AI Shorts Factory
 One-click control for the continuous Shorts maker:
 
     python scripts/shortsctl.py connect          # connect YouTube and Instagram once
-    python scripts/shortsctl.py start            # start making + uploading Shorts (private)
-    python scripts/shortsctl.py stop             # stop after the current Short finishes
-    python scripts/shortsctl.py status           # what the maker has done so far
+    python scripts/shortsctl.py start            # start making + uploading Shorts
+    python scripts/shortsctl.py stop             # stop the maker immediately
+    python scripts/shortsctl.py status           # check status and recent uploads
 
 The maker reads context.json (what kind of videos you want) and keeps producing
-until you run stop. Every upload is private by default so you can review first.
+until you run stop.
 """
 
 import os
@@ -44,15 +44,71 @@ def write_json(path, data):
         json.dump(data, f, indent=2)
 
 
+def get_daemon_pid():
+    raw = read_json(PID_FILE, {}).get("pid")
+    try:
+        return int(raw) if raw is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
 def daemon_running():
-    pid = read_json(PID_FILE, {}).get("pid")
+    pid = get_daemon_pid()
     if not pid:
         return False
     try:
         os.kill(pid, 0)
         return True
     except OSError:
+        # Process does not exist (stale PID file) - clean it up
+        if os.path.exists(PID_FILE):
+            try:
+                os.remove(PID_FILE)
+            except OSError:
+                pass
         return False
+
+
+def stop_process(pid, timeout=4.0):
+    """Terminate the daemon process and its process group cleanly."""
+    try:
+        my_pgid = os.getpgrp()
+    except OSError:
+        my_pgid = None
+
+    try:
+        pgid = os.getpgid(pid)
+        if pgid == my_pgid:
+            pgid = None
+    except OSError:
+        pgid = None
+
+    def _send_signal(sig):
+        try:
+            if pgid is not None:
+                os.killpg(pgid, sig)
+            else:
+                os.kill(pid, sig)
+        except OSError:
+            pass
+
+    _send_signal(signal.SIGTERM)
+    start_t = time.time()
+    while time.time() - start_t < timeout:
+        try:
+            os.kill(pid, 0)
+            time.sleep(0.2)
+        except OSError:
+            return True
+
+    # If still alive after timeout, force kill
+    _send_signal(signal.SIGKILL)
+    time.sleep(0.3)
+    try:
+        os.kill(pid, 0)
+        return False
+    except OSError:
+        return True
 
 
 def load_state():
@@ -79,11 +135,18 @@ def cmd_start(args):
                           "topics": ["ocean waves", "waterfall", "sunset timelapse"],
                           "gap_minutes": 5}, indent=2))
         sys.exit(1)
+
     if daemon_running():
-        print("The maker is already running. Use `status` to see it, or `stop` to stop it.")
+        pid = get_daemon_pid()
+        print(f"The maker is already running (PID {pid}). Use `status` to inspect or `stop` to stop it.")
         sys.exit(1)
+
     if os.path.exists(STOP_FILE):
-        os.remove(STOP_FILE)
+        try:
+            os.remove(STOP_FILE)
+        except OSError:
+            pass
+
     os.makedirs(LOG_DIR, exist_ok=True)
     venv_py = os.path.join(ROOT, ".venv", "bin", "python")
     py_bin = venv_py if os.path.exists(venv_py) else sys.executable
@@ -100,18 +163,42 @@ def cmd_start(args):
     )
     os.close(log_fd)
     write_json(PID_FILE, {"pid": proc.pid, "started_at": datetime.datetime.now().isoformat()})
-    print(f"Started. PID {proc.pid}. It makes Shorts from {os.path.basename(args.context)} "
-          f"and uploads them {args.privacy}. Run `status` any time, `stop` to stop it.")
+    print(f"Started maker (PID {proc.pid}). Uploading {args.privacy} from '{os.path.basename(args.context)}'. "
+          f"Run `status` any time, `stop` to stop.")
 
 
 def cmd_stop(args):
-    os.makedirs(LOG_DIR, exist_ok=True)
-    open(STOP_FILE, "w").close()
-    state = load_state()
-    done = sum(1 for r in state.get("runs", []) if r.get("status") == "SUCCESS")
-    if daemon_running():
-        print(f"Stop requested. The current Short finishes first, then the maker stops. {done} Short(s) made so far.")
+    pid = get_daemon_pid()
+    running = daemon_running()
+
+    if running and pid:
+        print(f"Stopping maker (PID {pid})...")
+        stop_process(pid)
+        if os.path.exists(PID_FILE):
+            try:
+                os.remove(PID_FILE)
+            except OSError:
+                pass
+        if os.path.exists(STOP_FILE):
+            try:
+                os.remove(STOP_FILE)
+            except OSError:
+                pass
+        state = load_state()
+        done = sum(1 for r in state.get("runs", []) if r.get("status") == "SUCCESS")
+        print(f"Maker stopped. Total Shorts made so far: {done}.")
     else:
+        # Clean up any leftover stale files
+        if os.path.exists(PID_FILE):
+            try:
+                os.remove(PID_FILE)
+            except OSError:
+                pass
+        if os.path.exists(STOP_FILE):
+            try:
+                os.remove(STOP_FILE)
+            except OSError:
+                pass
         print("The maker is not running. Nothing to stop.")
 
 
@@ -122,17 +209,24 @@ def cmd_status(args):
     today = datetime.date.today().isoformat()
     today_made = sum(1 for r in runs if r.get("status") == "SUCCESS" and r.get("at", "").startswith(today))
     running = daemon_running()
-    print(f"Maker: {'RUNNING' if running else 'stopped'}")
+    pid = get_daemon_pid() if running else None
+
+    status_str = f"RUNNING (PID {pid})" if running else "stopped"
+    print(f"Maker: {status_str}")
     print(f"Shorts made: {made} total, {today_made} today")
     if state.get("started_at"):
         print(f"Started: {state['started_at']}")
-    for r in runs[-3:]:
-        line = f"  {r.get('at', '')[:16]}  {r.get('topic')}  {r.get('status')}"
-        if r.get("youtube_url"):
-            line += f"  {r['youtube_url']}"
-        if r.get("instagram_url"):
-            line += f"  {r['instagram_url']}"
-        print(line)
+    if runs:
+        print("\nRecent runs:")
+        for r in runs[-5:]:
+            line = f"  {r.get('at', '')[:16]}  {r.get('topic', '')}  [{r.get('status', 'UNKNOWN')}]"
+            if r.get("youtube_url"):
+                line += f"  {r['youtube_url']}"
+            if r.get("instagram_url"):
+                line += f"  {r['instagram_url']}"
+            if r.get("status") != "SUCCESS" and r.get("error"):
+                line += f"  ({r['error'][:50]})"
+            print(line)
 
 
 def main():
@@ -144,8 +238,8 @@ def main():
     p_start = sub.add_parser("start", help="Start making and uploading Shorts")
     p_start.add_argument("--context", default=CONTEXT_FILE, help=f"Path to context.json (default: {CONTEXT_FILE})")
     p_start.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
-    sub.add_parser("stop", help="Stop the maker after the current Short")
-    sub.add_parser("status", help="Show what has been made")
+    sub.add_parser("stop", help="Stop the maker immediately")
+    sub.add_parser("status", help="Show what has been made and maker state")
 
     args = parser.parse_args()
     {"connect": cmd_connect, "start": cmd_start, "stop": cmd_stop, "status": cmd_status}[args.command](args)

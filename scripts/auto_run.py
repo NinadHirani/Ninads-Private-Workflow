@@ -29,12 +29,31 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"),
                     format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("auto_run")
 
+import atexit
+
 STOP_REQUESTED = False
+
+
+def _cleanup():
+    pid_file = os.path.join(LOG_DIR, "auto.pid")
+    try:
+        if os.path.exists(pid_file):
+            with open(pid_file, encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("pid") == os.getpid():
+                os.remove(pid_file)
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup)
 
 
 def _handle(sig, frame):
     global STOP_REQUESTED
     STOP_REQUESTED = True
+    logger.info("Termination signal received (%s). Exiting maker...", sig)
+    sys.exit(0)
 
 
 signal.signal(signal.SIGTERM, _handle)
@@ -151,7 +170,10 @@ def main():
 
         if stop_requested():
             break
-        time.sleep(gap)
+        for _ in range(gap):
+            if stop_requested():
+                break
+            time.sleep(1)
 
     logger.info("Maker stopped. Total Shorts made this session: %d.",
                 sum(1 for r in state["runs"] if r.get("status") == "SUCCESS"))

@@ -194,20 +194,24 @@ def handle_maker(args) -> int:
         today = datetime.date.today().isoformat()
         today_made = sum(1 for r in runs if r.get("status") == "SUCCESS" and r.get("at", "").startswith(today))
         running = shortsctl.daemon_running()
+        pid = shortsctl.get_daemon_pid() if running else None
 
         return emit_result({
             "status": "SUCCESS",
             "action": "status",
             "running": running,
+            "pid": pid,
             "total_made": made,
             "today_made": today_made,
             "started_at": state.get("started_at"),
-            "recent_runs": runs[-3:],
+            "recent_runs": runs[-5:],
         })
 
     elif action == "start":
         if shortsctl.daemon_running():
-            return emit_result({"status": "FAILED", "action": "start", "error": "Maker is already running"})
+            pid = shortsctl.get_daemon_pid()
+            return emit_result({"status": "FAILED", "action": "start",
+                                "error": f"Maker is already running (PID {pid})"})
 
         context_file = payload.get("context") or shortsctl.CONTEXT_FILE
         privacy = payload.get("privacy") or "private"
@@ -247,14 +251,25 @@ def handle_maker(args) -> int:
         })
 
     elif action == "stop":
-        os.makedirs(shortsctl.LOG_DIR, exist_ok=True)
-        open(shortsctl.STOP_FILE, "w").close()
-        running = shortsctl.daemon_running()
+        pid = shortsctl.get_daemon_pid()
+        stopped = False
+        if shortsctl.daemon_running() and pid:
+            stopped = shortsctl.stop_process(pid)
+        if os.path.exists(shortsctl.PID_FILE):
+            try:
+                os.remove(shortsctl.PID_FILE)
+            except OSError:
+                pass
+        if os.path.exists(shortsctl.STOP_FILE):
+            try:
+                os.remove(shortsctl.STOP_FILE)
+            except OSError:
+                pass
         return emit_result({
             "status": "SUCCESS",
             "action": "stop",
             "running": False,
-            "message": "Stop requested. Maker will finish current Short and stop.",
+            "message": "Maker stopped." if stopped else "Maker was not running.",
         })
 
     else:
