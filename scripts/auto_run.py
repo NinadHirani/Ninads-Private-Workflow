@@ -113,7 +113,14 @@ def main():
 
         topic = next(next_topics)
         logger.info("Making a Short on '%s' (%d made before this one)...", topic, len(state["runs"]))
-        result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None)
+        mode = (config.get("mode") or "clip").strip().lower()
+        if mode == "story":
+            from scripts.story_pipeline import run_story
+            result = run_story(topic, duration=int(config.get("duration", 45)),
+                               privacy=args.privacy,
+                               logo=os.getenv("LOGO_FILE") or None)
+        else:
+            result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None)
         state["runs"].append({
             "at": datetime.datetime.now().isoformat(),
             "topic": topic,

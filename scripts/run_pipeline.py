@@ -68,7 +68,7 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     if check.get("status") != "PASS":
         return fail("validate_raw", check.get("reason", "invalid source video"))
 
-    edit = edit_video(raw_path, duration=duration, logo=logo, style=style)
+    edit = edit_video(raw_path, duration=duration, logo=logo, style=style, caption=topic)
     steps["edit"] = edit
     if edit.get("status") != "SUCCESS":
         return fail("edit", edit.get("error", "edit failed"))
@@ -117,11 +117,18 @@ def main():
     parser.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
     parser.add_argument("--keep-files", action="store_true", help="Leave the raw and edited files in place instead of archiving them")
     parser.add_argument("--style", choices=["cinematic", "brainrot"], help="Editing style (default: EDIT_STYLE or cinematic)")
+    parser.add_argument("--mode", choices=["clip", "story"], default=None, help="clip = stock clip + effects; story = full AI commentary reel (script, voiceover, word-timed captions, multi-clip cuts)")
     args = parser.parse_args()
     if not 5 <= args.duration <= 180:
         parser.error("--duration must be between 5 and 180 seconds")
+    mode = args.mode or os.getenv("STORY_MODE", "").strip().lower() or "clip"
 
-    result = run(args.topic, args.duration, args.privacy, args.keep_files, style=args.style)
+    if mode == "story":
+        from story_pipeline import run_story
+        result = run_story(args.topic, duration=args.duration, privacy=args.privacy,
+                           keep_files=args.keep_files, logo=os.getenv("LOGO_FILE"))
+    else:
+        result = run(args.topic, args.duration, args.privacy, args.keep_files, style=args.style)
     print(json.dumps(result, indent=2))
     sys.exit(0 if result["status"] == "SUCCESS" else 1)
 

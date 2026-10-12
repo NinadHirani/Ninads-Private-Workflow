@@ -4,6 +4,9 @@
     "ocean waves",
     "waterfall"
   ],
-  "gap_minutes": 0,
-  "editing_style": "cinematic"
+  "gap_minutes": 2,
+  "editing_style": "cinematic",
+  "mode": "story",
+  "duration": 45,
+  "max_per_day": 0
 }
