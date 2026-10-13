@@ -43,7 +43,13 @@ def _ts(sec: float) -> str:
 def _group(words: list) -> list:
     cues = []
     cur = []
-    for w, s, e in words:
+    for item in words:
+        if isinstance(item, dict):
+            w, s, e = item.get("word", ""), item.get("start", 0), item.get("end", 0)
+        elif isinstance(item, (list, tuple)) and len(item) >= 3:
+            w, s, e = item[0], item[1], item[2]
+        else:
+            continue
         if cur and (len(cur) >= MAX_WORDS or (s - cur[-1][2]) > 0.35 or (s - cur[0][1]) > MAX_SEC):
             cues.append((" ".join(x[0] for x in cur), cur[0][1], cur[-1][2]))
             cur = []

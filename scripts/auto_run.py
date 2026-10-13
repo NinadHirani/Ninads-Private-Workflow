@@ -87,31 +87,71 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
-MODIFIERS = [
-    "",
-    "golden hour",
-    "peaceful morning",
-    "aerial view",
-    "crystal clear",
-    "serene timelapse",
-    "calm ambient",
-    "sunlight rays",
+from scripts.logger import is_topic_used, mark_topic_used, get_used_topics
+
+PROCEDURAL_ANGLES = [
+    "mysteries of", "untold secrets of", "breathtaking views of", "hidden beauty of",
+    "deep silence of", "rare sights of", "pure nature of",
+    "cinematic journey through", "fascinating phenomena of", "calming sounds of"
 ]
 
+def generate_ai_topics(niche_context: str, count: int = 10) -> list:
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        return []
+    import urllib.request
+    used = list(get_used_topics())[-30:]
+    prompt = f"""You are a viral YouTube Shorts producer.
+Channel Niche/Context: {niche_context}
+Generate {count} unique, high-retention, specific YouTube Short topics.
+Avoid repeating or closely matching any of these existing topics: {used}
+Output ONLY a raw JSON array of strings, for example: ["topic 1", "topic 2"]."""
+    try:
+        url = ("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + key)
+        body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            out = json.loads(resp.read().decode())
+        text = out["candidates"][0]["content"]["parts"][0]["text"].strip()
+        import re
+        text = re.sub(r"^```(?:json)?\s*|```\s*$", "", text.strip(), flags=re.M).strip()
+        items = json.loads(text)
+        if isinstance(items, list):
+            return [str(x).strip() for x in items if str(x).strip()]
+    except Exception as e:
+        logger.warning(f"Could not generate AI topics with Gemini: {e}")
+    return []
 
-def topic_iterator(topics):
-    """Rotate through the topics with dynamic variations, reshuffled each pass so runs vary."""
-    idx = 0
+def generate_procedural_topics(base_topics: list) -> list:
+    generated = []
+    for base in base_topics:
+        for angle in PROCEDURAL_ANGLES:
+            generated.append(f"{angle} {base}")
+            generated.append(f"{base} at twilight")
+            generated.append(f"{base} early morning")
+    random.shuffle(generated)
+    return generated
+
+def topic_iterator(topics, niche_context: str = ""):
+    """Yields strictly fresh topics that have never been produced, expanding dynamically when needed."""
+    pool = list(topics)
     while True:
-        order = list(topics)
-        random.shuffle(order)
-        for base in order:
-            mod = MODIFIERS[idx % len(MODIFIERS)]
-            idx += 1
-            if mod and mod not in base.lower():
-                yield f"{base} {mod}".strip()
-            else:
-                yield base.strip()
+        unused = [t for t in pool if not is_topic_used(t)]
+        if not unused:
+            logger.info("All current topics have been produced! Dynamically expanding with fresh unique topics...")
+            new_topics = generate_ai_topics(niche_context or "viral shorts")
+            if not new_topics:
+                new_topics = generate_procedural_topics(topics)
+            brand_new = [t for t in new_topics if not is_topic_used(t)]
+            if not brand_new:
+                # Timestamped variation fallback to strictly guarantee uniqueness
+                brand_new = [f"{t} edition {int(time.time())}" for t in topics]
+            pool.extend(brand_new)
+            unused = brand_new
+
+        next_topic = unused[0]
+        pool.remove(next_topic)
+        yield next_topic
 
 
 def main():
@@ -140,7 +180,7 @@ def main():
                 args.privacy if upload_enabled else "OFF (local only)",
                 f", max {max_per_day}/day" if max_per_day else "")
     schedule_gap_min = int(config.get("schedule_public_gap_minutes", config.get("gap_minutes", 5)))
-    next_topics = topic_iterator(topics)
+    next_topics = topic_iterator(topics, niche_context=config.get("context", ""))
 
     while not stop_requested():
         today = datetime.date.today().isoformat()

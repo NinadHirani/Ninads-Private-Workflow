@@ -11,7 +11,8 @@ def test_run_pipeline_mock_end_to_end(sample_video, monkeypatch):
     assert result["privacy"] == "private"
     assert result["steps"]["validate_edited"]["height"] == 1920
     assert result["steps"]["validate_edited"]["width"] == 1080
-    assert os.path.exists(result["steps"]["archive"]["archived_edited"])
+    assert "cleanup" in result["steps"]
+    assert not os.path.exists(result["deliverable_file"])
 
 
 def test_run_pipeline_without_keys_fails_clearly(monkeypatch):

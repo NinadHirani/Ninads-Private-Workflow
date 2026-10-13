@@ -21,6 +21,7 @@ except ImportError:
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("uploader")
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PRIVACY_OPTIONS = ("public", "unlisted", "private")
 RETRIABLE_STATUS = (500, 502, 503, 504)
 
@@ -171,6 +172,50 @@ def upload_to_youtube(
     except Exception as e:
         logger.error(f"YouTube upload failed: {e}")
         return {"status": "FAILED", "error": str(e)}
+
+
+QUEUE_FILE = os.path.join(ROOT, os.getenv("LOG_PATH", "logs"), "dual_queue.json")
+
+
+def enqueue_dual_upload(video_path: str, meta_path: str, reason: str = "") -> dict:
+    """Enqueues a deliverable for simultaneous upload to both YouTube & Instagram once quota frees."""
+    os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
+    items = []
+    if os.path.exists(QUEUE_FILE):
+        try:
+            with open(QUEUE_FILE, encoding="utf-8") as f:
+                items = json.load(f)
+        except Exception:
+            items = []
+
+    # Prevent duplicate queue entries for the same video
+    for it in items:
+        if it.get("video_path") == video_path:
+            return it
+
+    entry = {
+        "id": f"queue_{int(time.time() * 1000)}",
+        "video_path": video_path,
+        "meta_path": meta_path,
+        "enqueued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "reason": reason,
+        "status": "PENDING_DUAL_SYNC"
+    }
+    items.append(entry)
+    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
+        json.dump(items, f, indent=2)
+    logger.info("Enqueued for strict dual upload sync: %s (%s)", os.path.basename(video_path), reason)
+    return entry
+
+
+def get_dual_queue() -> list:
+    if os.path.exists(QUEUE_FILE):
+        try:
+            with open(QUEUE_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
 
 
 def main():

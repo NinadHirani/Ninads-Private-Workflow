@@ -278,8 +278,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self.send_json({"status": "FAILED", "error": f"Another short is already generating: '{CREATION_STATE['topic']}'"}, 409)
 
             duration = int(payload.get("duration") or 45)
-            privacy = payload.get("privacy") or "private"
+            privacy = payload.get("privacy") or "public"
             upload = bool(payload.get("upload", True))
+            audio_mode = payload.get("audio_mode")
 
             CREATION_STATE["active"] = True
             CREATION_STATE["topic"] = topic
@@ -292,6 +293,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         def worker():
             global CREATION_STATE
+            if audio_mode and audio_mode != "auto":
+                os.environ["AUDIO_MODE"] = audio_mode
+            elif "AUDIO_MODE" in os.environ:
+                del os.environ["AUDIO_MODE"]
+
             def on_progress(step, status, detail=None):
                 with CREATION_LOCK:
                     CREATION_STATE["step"] = step
@@ -360,9 +366,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         if not head_only:
-            with open(file_path, "rb") as f:
-                while chunk := f.read(64 * 1024):
-                    self.wfile.write(chunk)
+            try:
+                with open(file_path, "rb") as f:
+                    while chunk := f.read(64 * 1024):
+                        self.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     def serve_media_with_range(self, file_path: str, head_only: bool = False):
         if not os.path.exists(file_path):
@@ -380,9 +389,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Accept-Ranges", "bytes")
             self.end_headers()
             if not head_only:
-                with open(file_path, "rb") as f:
-                    while chunk := f.read(64 * 1024):
-                        self.wfile.write(chunk)
+                try:
+                    with open(file_path, "rb") as f:
+                        while chunk := f.read(64 * 1024):
+                            self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
             return
 
         range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
@@ -408,16 +420,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
 
-        with open(file_path, "rb") as f:
-            f.seek(first_byte)
-            bytes_left = length
-            while bytes_left > 0:
-                chunk_size = min(bytes_left, 64 * 1024)
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
-                bytes_left -= len(chunk)
+        try:
+            with open(file_path, "rb") as f:
+                f.seek(first_byte)
+                bytes_left = length
+                while bytes_left > 0:
+                    chunk_size = min(bytes_left, 64 * 1024)
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    bytes_left -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
 
 def print_banner(host: str, port: int):

@@ -41,6 +41,43 @@ def archive_file(file_path: str) -> str:
     logger.info(f"Archived '{file_path}' -> '{dest_path}'")
     return dest_path
 
+def cleanup_files(*paths) -> list:
+    """Safely removes specified files and directories if they exist."""
+    deleted = []
+    for p in paths:
+        if not p:
+            continue
+        if isinstance(p, (list, tuple, set)):
+            for sub in p:
+                deleted.extend(cleanup_files(sub))
+            continue
+        if os.path.isfile(p):
+            try:
+                os.remove(p)
+                logger.info(f"Cleaned up file: '{p}'")
+                deleted.append(p)
+            except Exception as e:
+                logger.warning(f"Could not delete '{p}': {e}")
+        elif os.path.isdir(p):
+            try:
+                shutil.rmtree(p, ignore_errors=True)
+                logger.info(f"Cleaned up directory: '{p}'")
+                deleted.append(p)
+            except Exception as e:
+                logger.warning(f"Could not delete directory '{p}': {e}")
+    return deleted
+
+def delete_processed_media(raw_path: str = None, edited_path: str = None,
+                           deliverable_video: str = None, deliverable_meta: str = None,
+                           workdir: str = None, extra_files: list = None) -> dict:
+    """Deletes temporary and uploaded media assets to keep the repo clean."""
+    deleted = cleanup_files(raw_path, edited_path, deliverable_video, deliverable_meta, workdir, extra_files)
+    return {
+        "status": "SUCCESS",
+        "deleted_count": len(deleted),
+        "deleted_paths": deleted
+    }
+
 def archive_processed_media(raw_path: str = None, edited_path: str = None) -> dict:
     archived_raw = archive_file(raw_path) if raw_path else None
     archived_edited = archive_file(edited_path) if edited_path else None

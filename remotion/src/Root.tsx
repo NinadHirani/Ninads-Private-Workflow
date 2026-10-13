@@ -27,6 +27,7 @@ const defaultProps: ShortsVideoProps = {
   style: 'anime',
   title: 'ONE-PUNCH MAN ANIME',
   durationInFrames: 300,
+  useOriginalAudio: false,
 };
 
 const calculateMetadata: CalculateMetadataFunction<ShortsVideoProps> = ({

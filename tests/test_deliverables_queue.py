@@ -32,8 +32,18 @@ def test_story_pipeline_handles_youtube_quota_gracefully(sample_video, monkeypat
             "quota_exceeded": True
         }
 
-    import run_pipeline
-    monkeypatch.setattr(run_pipeline, "upload_to_youtube", fake_upload)
+    monkeypatch.setattr(uploader, "upload_to_youtube", fake_upload)
+    try:
+        import run_pipeline
+        monkeypatch.setattr(run_pipeline, "upload_to_youtube", fake_upload)
+    except Exception:
+        pass
+    try:
+        import scripts.run_pipeline as s_rp
+        monkeypatch.setattr(s_rp, "upload_to_youtube", fake_upload)
+    except Exception:
+        pass
+
     result = run_story("ocean breeze", duration=10, upload=True)
     assert result["status"] == "SUCCESS"
     assert result["mode"] == "LOCAL_QUEUE"

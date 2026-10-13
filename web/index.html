@@ -308,11 +308,18 @@
       transition: all 0.3s ease;
     }
 
-    .genre-badge.anime {
+    .genre-badge.anime, .genre-badge.anime_scene {
       background: rgba(234, 179, 8, 0.2);
       border-color: rgba(234, 179, 8, 0.5);
       color: #fde047;
       box-shadow: 0 0 14px rgba(234, 179, 8, 0.25);
+    }
+
+    .genre-badge.movie, .genre-badge.movie_scene {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);
     }
 
     .genre-badge.gaming {
@@ -977,28 +984,21 @@
 
       <div class="chips-label">Quick Suggestions:</div>
       <div class="chips-row">
-        <div class="chip" onclick="setStudioTopic('one-punch man anime')">🥊 One-Punch Man</div>
-        <div class="chip" onclick="setStudioTopic('jujutsu kaisen gojo infinity')">👁️ Gojo Infinity</div>
-        <div class="chip" onclick="setStudioTopic('dark matter space paradox')">🌌 Dark Matter</div>
-        <div class="chip" onclick="setStudioTopic('elden ring secret lore')">🗡️ Elden Ring Lore</div>
-        <div class="chip" onclick="setStudioTopic('stoic mindset under pressure')">🏛️ Stoic Mindset</div>
-        <div class="chip" onclick="setStudioTopic('aurora borealis northern lights')">✨ Aurora Nature</div>
+        <div class="chip" onclick="setStudioTopic('Saitama vs Boros fight scene')">🔥 Saitama Fight Scene</div>
+        <div class="chip" onclick="setStudioTopic('Batman interrogation movie scene')">🎬 Batman Movie Scene</div>
+        <div class="chip" onclick="setStudioTopic('one-punch man anime lore')">🥊 Anime Lore (AI VO)</div>
+        <div class="chip" onclick="setStudioTopic('stoic mindset under pressure')">🏛️ Stoic Wisdom (AI VO)</div>
+        <div class="chip" onclick="setStudioTopic('dark matter space paradox')">🌌 Cosmic Mystery (AI VO)</div>
+        <div class="chip" onclick="setStudioTopic('aurora borealis northern lights')">✨ Nature ASMR</div>
       </div>
 
       <div class="options-row">
-        <div class="opt-group">
+        <div class="opt-group" style="flex:1;">
           <label class="opt-label">Duration</label>
           <select id="studioDuration" class="opt-select">
             <option value="30">30 Seconds</option>
             <option value="45" selected>45 Seconds (Optimal)</option>
             <option value="60">60 Seconds</option>
-          </select>
-        </div>
-        <div class="opt-group">
-          <label class="opt-label">Privacy</label>
-          <select id="studioPrivacy" class="opt-select">
-            <option value="private" selected>Private (Check First)</option>
-            <option value="public">Public (Instant Release)</option>
           </select>
         </div>
       </div>
@@ -1325,8 +1325,13 @@
         const res = await apiFetch('/api/classify?topic=' + encodeURIComponent(topic));
         const data = await res.json();
         genreBadge.className = 'genre-badge ' + (data.category || 'general');
-        const icon = data.category === 'anime' ? '⚡️' : data.category === 'gaming' ? '🎮' : data.category === 'scifi_lore' ? '🌌' : data.category === 'nature' ? '🌿' : '💡';
-        genreBadge.innerText = `${icon} ${data.category.toUpperCase()} DETECTED`;
+        const icon = (data.category || '').includes('anime') ? '⚡️' : (data.category || '').includes('movie') ? '🎬' : data.category === 'gaming' ? '🎮' : data.category === 'scifi_lore' ? '🌌' : data.category === 'nature' ? '🌿' : '💡';
+        const modeLabel = data.audio_mode === 'original_voice'
+          ? '🎬 ORIGINAL SCENE VOICE'
+          : data.audio_mode === 'nature_asmr'
+          ? '🌿 ASMR SOUNDSCAPE'
+          : '🎙️ AI SCRIPT + VO';
+        genreBadge.innerText = `${icon} ${data.category.toUpperCase().replace('_', ' ')} • ${modeLabel}`;
       } catch (e) {}
     }
 
@@ -1341,7 +1346,7 @@
       if (!topic) return alert('Please enter a topic or keyword!');
 
       const duration = parseInt(document.getElementById('studioDuration').value || 45);
-      const privacy = document.getElementById('studioPrivacy').value || 'private';
+      const privacy = 'public';
       const autoUpload = document.getElementById('studioAutoUpload').checked;
 
       const createBtn = document.getElementById('btnCreateShort');
@@ -1459,7 +1464,7 @@
       }
 
       const metaEl = document.getElementById('resultMetaInfo');
-      const ytUrl = res.youtube_url ? `<a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline;">Watch on YouTube (${res.privacy})</a>` : 'Saved in deliverables';
+      const ytUrl = res.youtube_url ? `<a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline;">Watch on YouTube</a>` : 'Saved in deliverables';
       const igStatus = res.instagram ? `<span style="margin-left:12px; color:#f472b6;">Instagram: ${res.instagram}</span>` : '';
 
       metaEl.innerHTML = `

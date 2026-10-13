@@ -112,7 +112,7 @@ def _edge(text: str, out_dir: str, wav: str, voice: str = None) -> list:
 
 def _parse_vtt(path: str) -> list:
     words = []
-    timing = re.compile(r"(\d+):(\d+):(\d+)\.(\d+)\s*-->\s*(\d+):(\d+):(\d+)\.(\d+)")
+    timing = re.compile(r"(\d+):(\d+):(\d+)[.,](\d+)\s*-->\s*(\d+):(\d+):(\d+)[.,](\d+)")
     lines = open(path, encoding="utf-8", errors="ignore").read().splitlines()
     i = 0
     while i < len(lines):
@@ -124,8 +124,13 @@ def _parse_vtt(path: str) -> list:
             for j in range(i + 1, min(i + 4, len(lines))):
                 txt = lines[j].strip()
                 if txt and "-->" not in txt and not txt.isdigit():
-                    for w in txt.split():
-                        words.append((w, round(start, 2), round(end, 2)))
+                    cue_words = txt.split()
+                    if cue_words:
+                        dur_per_word = (end - start) / len(cue_words)
+                        for k, w in enumerate(cue_words):
+                            w_st = round(start + k * dur_per_word, 2)
+                            w_en = round(start + (k + 1) * dur_per_word, 2)
+                            words.append({"word": w, "start": w_st, "end": w_en})
                     break
             i += 2
         else:

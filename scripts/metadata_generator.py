@@ -21,6 +21,10 @@ except ImportError:
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("metadata_generator")
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 TITLE_LIMIT = 100
 
 
@@ -34,13 +38,36 @@ def generate_metadata(topic: str, category: str = None) -> dict:
         return {"status": "FAILED", "error": "Topic is empty"}
 
     if not category:
-        from scripts.scene_generator import classify_topic
+        try:
+            from scripts.scene_generator import classify_topic
+        except ImportError:
+            from scene_generator import classify_topic
         category = classify_topic(topic).get("category", "general")
 
     name = _title_case(topic)
     tag = re.sub(r"\W", "", topic.lower())
 
-    if category == "anime":
+    if category == "anime_scene":
+        title = f"{name} | Epic Scene (Original Audio) #Shorts"
+        hashtags = ["#shorts", "#anime", f"#{tag}", "#animescene", "#originalsound", "#viral"]
+        description = (
+            f"Witness this iconic moment from {topic}. Preserved with original character voice & scene audio.\n\n"
+            f"Subscribe for more epic anime moments and scenes!\n\n"
+            + " ".join(hashtags)
+        )
+        tags = [topic.lower(), "anime", "anime scene", "original voice", "shorts", "shonen", "viral"]
+
+    elif category in ("movie", "movie_scene"):
+        title = f"{name} | Iconic Movie Scene #Shorts"
+        hashtags = ["#shorts", "#movies", "#cinema", f"#{tag}", "#moviescene", "#viral"]
+        description = (
+            f"Iconic cinema moment: {topic}. Preserved in original sound.\n\n"
+            f"Subscribe for more legendary movie scenes and moments!\n\n"
+            + " ".join(hashtags)
+        )
+        tags = [topic.lower(), "movie", "movie scene", "cinema", "shorts", "hollywood", "viral"]
+
+    elif category == "anime":
         titles = [
             f"The Wild Truth About {name} #Shorts",
             f"Why {name} Broke Anime Rules #Shorts",
@@ -114,8 +141,14 @@ def main():
     parser = argparse.ArgumentParser(description="Generate YouTube Shorts metadata")
     parser.add_argument("--topic", type=str, default="one-punch man anime")
     parser.add_argument("--category", type=str, default=None)
+    parser.add_argument("--output", type=str, default=None, help="Path to write JSON metadata file")
     args = parser.parse_args()
-    print(json.dumps(generate_metadata(args.topic, args.category), indent=2))
+    res = generate_metadata(args.topic, args.category)
+    if args.output:
+        os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(res, f, indent=2)
+    print(json.dumps(res, indent=2))
 
 
 if __name__ == "__main__":

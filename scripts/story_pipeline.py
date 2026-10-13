@@ -27,7 +27,8 @@ from remotion_renderer import render_with_remotion
 from content_finder import mock_mode
 from validator import validate_video
 from metadata_generator import generate_metadata
-from archive import archive_processed_media
+from archive import archive_processed_media, delete_processed_media
+from logger import mark_asset_used, mark_topic_used, log_execution
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("story_pipeline")
@@ -55,7 +56,6 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
     def fail(step: str, error: str) -> dict:
         logger.error("Story pipeline stopped at '%s': %s", step, error)
         notify(step, "failed", error)
-        from run_pipeline import log_execution
         log_execution(topic, "FAILED", "", "", "",
                       execution_time_sec=round(time.time() - started, 2), error_message=f"{step}: {error}")
         return {"status": "FAILED", "failed_step": step, "error": error, "steps": steps,
@@ -67,27 +67,62 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
     steps["classify"] = genre_info
     notify("classify", "done", f"Genre: {genre_info['category']}, Style: {genre_info['style']}")
 
-    # 2. Write Creative Script
-    notify("script", "running", topic)
-    script = write_script(topic, category=genre_info["category"])
-    steps["script"] = {"writer": script["writer"], "lines": len(script["lines"]), "category": genre_info["category"]}
-    notify("script", "done")
+    # 2. Audio & Speech Configuration (Context-Aware: Original Scene Voice vs Nature vs Commentary)
+    from scripts.sound_manager import get_audio_assets_for_topic
+    audio_override = os.getenv("AUDIO_MODE")
+    audio_cfg = get_audio_assets_for_topic(
+        topic,
+        genre_info["category"],
+        genre_info.get("music_mood", "calm_ambient"),
+        duration=int(duration),
+        override_mode=audio_override
+    )
 
-    # 3. Generate Neural Voiceover & Word Timings
-    notify("voiceover", "running")
-    vo = make_voiceover(script["lines"], workdir)
-    steps["voiceover"] = {"voice": vo.get("voice"), "words": len(vo.get("words") or [])}
-    if vo.get("status") != "SUCCESS":
-        return fail("voiceover", vo.get("error", "voiceover failed"))
-    notify("voiceover", "done")
-
-    # Determine real spoken duration from word timings
-    words = vo.get("words") or []
-    if words:
-        spoken_duration = max(words[-1].get("end", duration), 8.0) + 1.0
-        final_duration = min(spoken_duration, float(max_duration))
-    else:
+    if audio_cfg["mode"] == "original_voice":
+        # Anime & Movie Scenes: Preserve original character dialogue & scene audio, NO AI speech
+        script = {"lines": [], "writer": "original_voice"}
+        vo = {"status": "SUCCESS", "file": None, "words": []}
+        words = []
         final_duration = float(duration)
+        steps["audio_mode"] = "original_voice"
+        steps["voiceover"] = {"voice": None, "words": 0, "mode": "original_voice"}
+        notify("voiceover", "done", "Original Voice mode: scene character audio & original sound preserved")
+    elif audio_cfg["mode"] == "nature_asmr":
+        # Nature & Pure ASMR: Realistic natural soundscape + calming music, NO AI speech
+        script = {"lines": [], "writer": "nature_soundscape"}
+        vo = {"status": "SUCCESS", "file": None, "words": []}
+        words = []
+        final_duration = float(duration)
+        steps["audio_mode"] = "nature_asmr"
+        steps["voiceover"] = {"voice": None, "words": 0, "mode": "nature_asmr"}
+        notify("voiceover", "done", "Nature ASMR mode: natural soundscape + relaxing ambient music")
+    else:
+        # Commentary (Facts, Stoic, Tech, etc.): high-retention viral script + neural voiceover
+        notify("script", "running", topic)
+        script = write_script(topic, category=genre_info["category"])
+        steps["script"] = {"writer": script["writer"], "lines": len(script["lines"]), "category": genre_info["category"]}
+        notify("script", "done")
+
+        notify("voiceover", "running")
+        vo = make_voiceover(script["lines"], workdir)
+        steps["voiceover"] = {"voice": vo.get("voice"), "words": len(vo.get("words") or [])}
+        if vo.get("status") != "SUCCESS":
+            return fail("voiceover", vo.get("error", "voiceover failed"))
+        notify("voiceover", "done")
+
+        words = vo.get("words") or []
+        if words:
+            last_item = words[-1]
+            if isinstance(last_item, dict):
+                last_end = float(last_item.get("end", duration))
+            elif isinstance(last_item, (list, tuple)) and len(last_item) >= 3:
+                last_end = float(last_item[2])
+            else:
+                last_end = float(duration)
+            spoken_duration = max(last_end, 8.0) + 1.0
+            final_duration = min(spoken_duration, float(max_duration))
+        else:
+            final_duration = float(duration)
 
     # 4. Hybrid Scene Generation (AI Scenes or Stock Video)
     notify("scenes", "running", f"{genre_info['visual_mode']} for {topic}")
@@ -103,13 +138,18 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
 
     remotion_res = render_with_remotion(
         scenes=scenes,
-        voiceover_wav=vo["file"],
+        voiceover_wav=vo.get("file"),
         words=words,
         output_mp4=edited_path,
         title=genre_info.get("badge_title", topic.upper()[:40]),
-        style=genre_info.get("style", "anime"),
+        style=genre_info.get("style", "cinematic"),
+        music_src=audio_cfg.get("music_src"),
+        music_volume=audio_cfg.get("music_volume", 0.18),
+        ambient_src=audio_cfg.get("ambient_src"),
+        ambient_volume=audio_cfg.get("ambient_volume", 0.65),
         logo_src=logo if logo and os.path.exists(logo) else None,
-        fallback_text=" ".join(script["lines"]),
+        fallback_text=" ".join(script.get("lines", [])),
+        use_original_audio=audio_cfg.get("use_original_audio", False),
         on_progress=notify,
     )
 
@@ -122,7 +162,15 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         raw_clip_paths = [s["src"] for s in scenes if s["type"] == "video"]
         if not raw_clip_paths:
             raw_clip_paths = [os.path.join(ROOT, "tests", "sample.mp4")]
-        cmd = ["bash", STORY_SCRIPT, edited_path, str(int(final_duration)), vo["file"]]
+        fallback_audio = vo.get("file") or audio_cfg.get("ambient_src") or audio_cfg.get("music_src")
+        if not fallback_audio or not os.path.exists(fallback_audio):
+            if audio_cfg.get("use_original_audio") and raw_clip_paths and os.path.exists(raw_clip_paths[0]):
+                fallback_audio = raw_clip_paths[0]
+            else:
+                fallback_audio = os.path.join(workdir, "silence.wav")
+                subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(int(final_duration)), fallback_audio],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["bash", STORY_SCRIPT, edited_path, str(int(final_duration)), fallback_audio]
         if has_captions:
             cmd.append(ass_path)
         cmd.extend(raw_clip_paths)
@@ -165,6 +213,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         "duration": round(final_duration, 1),
         "raw_path": scenes[0]["src"] if scenes else None,
         "scenes": scenes,
+        "workdir": workdir,
         "edited_path": edited_path,
         "file_path": edited_path,
         "metadata": meta,
@@ -206,11 +255,15 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
             "publish_at": publish_at,
         }, f, indent=2)
 
+    workdir = prod.get("workdir")
+    stock_clip_files = [s["src"] for s in prod.get("scenes", []) if s.get("type") == "video" and str(s.get("src", "")).startswith(os.path.join(ROOT, "downloads"))]
+
     if not upload:
         elapsed = round(time.time() - started, 2)
-        from run_pipeline import log_execution
         log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
                       execution_time_sec=elapsed)
+        if not keep_files:
+            delete_processed_media(edited_path=edited_path, workdir=workdir, extra_files=stock_clip_files)
         return {
             "status": "SUCCESS", "mode": "LOCAL", "topic": topic, "style": prod.get("style"),
             "category": prod.get("category"),
@@ -219,57 +272,65 @@ def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_fil
             "total_time_sec": elapsed, "steps": steps
         }
 
-    from run_pipeline import publish_youtube_video, publish_instagram_video
+    try:
+        from scripts.run_pipeline import publish_youtube_video, publish_instagram_video
+    except ImportError:
+        from run_pipeline import publish_youtube_video, publish_instagram_video
     yt_upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
                                       tags=meta["tags"], privacy=privacy, publish_at=publish_at,
                                       on_progress=on_progress)
     steps["upload"] = yt_upload
 
-    ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
-                                 tags=meta["tags"], on_progress=on_progress)
-    steps["upload_instagram"] = ig
-    if ig.get("status") != "SUCCESS":
-        logger.warning("Instagram post failed: %s", ig.get("error", ""))
-
-    if yt_upload.get("status") == "QUOTA_EXCEEDED":
+    # Strict Dual-or-None: If YouTube quota is reached or upload fails, DO NOT publish to Instagram yet.
+    # Preserve both together in queue so they can be published simultaneously.
+    if yt_upload.get("status") != "SUCCESS":
+        queue_reason = "YouTube daily quota reached" if yt_upload.get("status") == "QUOTA_EXCEEDED" else yt_upload.get("error", "YouTube upload failed")
+        from scripts.uploader import enqueue_dual_upload
+        enqueue_dual_upload(deliverable_video, deliverable_meta, reason=queue_reason)
         elapsed = round(time.time() - started, 2)
-        from run_pipeline import log_execution
-        logger.warning("YouTube quota exceeded. Short preserved in deliverables/: %s", deliverable_video)
+        logger.warning("YouTube blocked (%s). STRICT DUAL-OR-NONE active: Instagram held back. Deliverable preserved in: %s",
+                       queue_reason, deliverable_video)
         log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
                       execution_time_sec=elapsed)
+        if not keep_files:
+            delete_processed_media(edited_path=edited_path, workdir=workdir, extra_files=stock_clip_files)
         return {
             "status": "SUCCESS", "mode": "LOCAL_QUEUE", "topic": topic, "style": prod.get("style"),
             "category": prod.get("category"),
             "writer": prod.get("writer"), "voice": prod.get("voice"), "youtube_url": "",
-            "deliverable_file": deliverable_video, "queue_reason": "YouTube daily quota reached",
-            "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
+            "deliverable_file": deliverable_video, "queue_reason": queue_reason,
+            "instagram": "HOLD_FOR_YOUTUBE_SYNC", "instagram_url": "",
             "privacy": privacy, "total_time_sec": elapsed, "steps": steps
         }
 
-    if yt_upload.get("status") != "SUCCESS":
-        from run_pipeline import log_execution
-        logger.error("Story upload failed: %s", yt_upload.get("error"))
-        log_status = "SUCCESS" if ig.get("status") == "SUCCESS" else "FAILED"
-        log_execution(topic, log_status, os.path.basename(edited_path), "", "",
-                      execution_time_sec=round(time.time() - started, 2),
-                      error_message=f"upload: {yt_upload.get('error')}")
-        if ig.get("status") == "SUCCESS":
-            return {
-                "status": "SUCCESS", "mode": "PRODUCTION", "topic": topic, "style": prod.get("style"),
-                "category": prod.get("category"), "writer": prod.get("writer"), "voice": prod.get("voice"),
-                "youtube_url": "", "deliverable_file": deliverable_video,
-                "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
-                "privacy": privacy, "total_time_sec": round(time.time() - started, 2), "steps": steps
-            }
-        return {
-            "status": "FAILED", "failed_step": "upload", "error": yt_upload.get("error", "upload failed"),
-            "deliverable_file": deliverable_video, "steps": steps, "mode": "MOCK" if mock_mode() else "PRODUCTION"
-        }
+    # YouTube upload succeeded! Now publish the exact same video to Instagram in lockstep.
+    ig = publish_instagram_video(edited_path, title=meta["title"], description=meta["description"],
+                                 tags=meta["tags"], on_progress=on_progress)
+    steps["upload_instagram"] = ig
+    if ig.get("status") != "SUCCESS":
+        logger.warning("Instagram post failed after YouTube succeeded: %s", ig.get("error", ""))
 
+    # Both platforms published in lockstep!
     elapsed = round(time.time() - started, 2)
-    from run_pipeline import log_execution
     log_execution(topic, "SUCCESS", os.path.basename(edited_path), yt_upload["video_id"], yt_upload["youtube_url"],
                   execution_time_sec=elapsed)
+
+    # Mark topic and assets as used to prevent repetition
+    mark_topic_used(topic)
+    for s in prod.get("scenes", []):
+        if s.get("asset_id"):
+            mark_asset_used(str(s["asset_id"]), provider="stock", topic=topic)
+        if s.get("asset_url"):
+            mark_asset_used(str(s["asset_url"]), provider="stock", topic=topic)
+
+    if not keep_files:
+        steps["cleanup"] = delete_processed_media(
+            edited_path=edited_path,
+            deliverable_video=deliverable_video,
+            deliverable_meta=deliverable_meta,
+            workdir=workdir,
+            extra_files=stock_clip_files
+        )
 
     return {
         "status": "SUCCESS", "mode": yt_upload.get("mode"), "topic": topic, "style": prod.get("style"),

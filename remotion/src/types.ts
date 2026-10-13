@@ -2,6 +2,7 @@ export interface SceneItem {
   type: 'image' | 'video';
   src: string;
   durationInFrames: number;
+  volume?: number;
 }
 
 export interface WordItem {
@@ -14,12 +15,15 @@ export type VideoStyle = 'anime' | 'cinematic' | 'viral' | 'chill';
 
 export interface ShortsVideoProps {
   scenes: SceneItem[];
-  voiceoverSrc: string;
-  words: WordItem[];
+  voiceoverSrc?: string;
+  words?: WordItem[];
   musicSrc?: string;
   musicVolume?: number;
+  ambientSrc?: string;
+  ambientVolume?: number;
   style?: VideoStyle;
   title?: string;
   logoSrc?: string;
   durationInFrames: number;
+  useOriginalAudio?: boolean;
 }

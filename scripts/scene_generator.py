@@ -34,9 +34,33 @@ ANIME_KEYWORDS = [
     "dragon ball", "zoro", "otaku", "waifu", "shonen", "chainsaw man"
 ]
 
+MOVIE_KEYWORDS = [
+    "movie", "movies", "film", "films", "cinema", "hollywood", "batman", "oppenheimer",
+    "interstellar", "joker", "marvel", "avengers", "spider-man", "spiderman", "iron man",
+    "john wick", "godfather", "gladiator", "matrix", "star wars", "fight club", "inception",
+    "lord of the rings", "peaky blinders", "breaking bad", "walter white", "cillian murphy",
+    "tom cruise", "blade runner", "pulp fiction", "goodfellas", "scarface", "shawshank", "dark knight"
+]
+
+SCENE_INDICATORS = [
+    "scene", "scenes", "clip", "clips", "fight", "fight scene", "battle", "moment",
+    "dialogue", "quote", "speech", "action", "ending", "transformation", "climax",
+    "monologue", "soundtrack", "original voice"
+]
+
 GAMING_KEYWORDS = [
     "game", "gaming", "minecraft", "gta", "elden ring", "cyberpunk", "zelda", "pokemon",
     "roblox", "fortnite", "valorant", "league of legends", "call of duty", "dark souls"
+]
+
+STOIC_KEYWORDS = [
+    "stoic", "stoicism", "marcus aurelius", "seneca", "epictetus", "discipline",
+    "mindset", "self-control", "inner peace", "philosophy", "wisdom", "warrior"
+]
+
+TECH_AI_KEYWORDS = [
+    "ai", "artificial intelligence", "robot", "robotics", "tech", "quantum",
+    "neural network", "singularity", "future technology", "cyberpunk", "agi"
 ]
 
 SCIFI_LORE_KEYWORDS = [
@@ -51,66 +75,143 @@ FACTS_MYSTERY_KEYWORDS = [
 
 NATURE_KEYWORDS = [
     "nature", "forest", "ocean", "waves", "rain", "mountain", "river", "aurora",
-    "relax", "relaxing", "calm", "sunset", "sunrise", "waterfall", "wildlife", "flowers"
+    "relax", "relaxing", "calm", "sunset", "sunrise", "waterfall", "wildlife", "flowers",
+    "stream", "landscape", "timelapse", "leaves", "deep forest", "birds", "bird"
 ]
 
 
 def classify_topic(topic: str) -> dict:
-    """Classifies topic into genre, style, and visual mode."""
+    """Classifies topic into genre, style, audio mode, and visual mode."""
     t = (topic or "").lower().strip()
+    is_scene = any(k in t for k in SCENE_INDICATORS)
 
-    # 1. Anime
-    if any(k in t for k in ANIME_KEYWORDS):
-        return {
-            "category": "anime",
-            "style": "anime",
-            "visual_mode": "ai_image",
-            "music_mood": "epic_anime",
-            "voice_energy": "high",
-            "badge_title": topic.upper()[:40],
-        }
-
-    # 2. Gaming
-    if any(k in t for k in GAMING_KEYWORDS):
-        return {
-            "category": "gaming",
-            "style": "viral",
-            "visual_mode": "ai_image",
-            "music_mood": "phonk_hype",
-            "voice_energy": "high",
-            "badge_title": topic.upper()[:40],
-        }
-
-    # 3. Sci-Fi & Lore
-    if any(k in t for k in SCIFI_LORE_KEYWORDS):
-        return {
-            "category": "scifi_lore",
-            "style": "cinematic",
-            "visual_mode": "ai_image",
-            "music_mood": "cosmic_ambient",
-            "voice_energy": "dramatic",
-            "badge_title": topic.upper()[:40],
-        }
-
-    # 4. Mind-Blowing Facts & Mysteries
-    if any(k in t for k in FACTS_MYSTERY_KEYWORDS):
-        return {
-            "category": "facts_mystery",
-            "style": "viral",
-            "visual_mode": "ai_image",
-            "music_mood": "suspense_phonk",
-            "voice_energy": "dynamic",
-            "badge_title": topic.upper()[:40],
-        }
-
-    # 5. Nature & Relaxation
+    # 1. Nature & Pure Relaxation ASMR
     if any(k in t for k in NATURE_KEYWORDS):
         return {
             "category": "nature",
             "style": "chill",
             "visual_mode": "stock_video",
+            "audio_mode": "nature_asmr",
             "music_mood": "calm_ambient",
-            "voice_energy": "soothing",
+            "voice_energy": "none",
+            "badge_title": "🎧 PUT ON HEADPHONES • 4K ASMR",
+        }
+
+    # 2. Anime & Manga (Scene with Original Voice vs Commentary)
+    if any(k in t for k in ANIME_KEYWORDS):
+        if is_scene:
+            return {
+                "category": "anime_scene",
+                "style": "anime",
+                "visual_mode": "stock_video",
+                "audio_mode": "original_voice",
+                "music_mood": "epic_anime",
+                "voice_energy": "original_character",
+                "badge_title": f"🔥 {topic.upper()[:36]}",
+            }
+        else:
+            return {
+                "category": "anime",
+                "style": "anime",
+                "visual_mode": "ai_image",
+                "audio_mode": "commentary_speech",
+                "music_mood": "epic_anime",
+                "voice_energy": "high",
+                "badge_title": topic.upper()[:40],
+            }
+
+    # 3. Movie & Film (Scene with Original Voice vs Commentary)
+    if any(k in t for k in MOVIE_KEYWORDS):
+        if is_scene or any(w in t for w in ["scene", "clip", "dialogue", "movie", "film"]):
+            return {
+                "category": "movie_scene",
+                "style": "cinematic",
+                "visual_mode": "stock_video",
+                "audio_mode": "original_voice",
+                "music_mood": "cinematic_epic",
+                "voice_energy": "original_character",
+                "badge_title": f"🎬 {topic.upper()[:36]}",
+            }
+        else:
+            return {
+                "category": "movie",
+                "style": "cinematic",
+                "visual_mode": "ai_image",
+                "audio_mode": "commentary_speech",
+                "music_mood": "cinematic_epic",
+                "voice_energy": "dramatic",
+                "badge_title": topic.upper()[:40],
+            }
+
+    # 4. Standalone Scene Indicator (e.g. "epic fight scene", "interrogation scene")
+    if is_scene:
+        return {
+            "category": "movie_scene",
+            "style": "cinematic",
+            "visual_mode": "stock_video",
+            "audio_mode": "original_voice",
+            "music_mood": "cinematic_epic",
+            "voice_energy": "original_character",
+            "badge_title": f"🎬 {topic.upper()[:36]}",
+        }
+
+    # 5. Stoic Philosophy & Mindset
+    if any(k in t for k in STOIC_KEYWORDS):
+        return {
+            "category": "stoic",
+            "style": "cinematic",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "cinematic_epic",
+            "voice_energy": "deep_reflective",
+            "badge_title": "STOIC WISDOM",
+        }
+
+    # 6. Future Tech & AI Horizons
+    if any(k in t for k in TECH_AI_KEYWORDS):
+        return {
+            "category": "tech_ai",
+            "style": "viral",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "phonk_hype",
+            "voice_energy": "dynamic",
+            "badge_title": "FUTURE OF TECH",
+        }
+
+    # 7. Mind-Blowing Facts & Mysteries
+    if any(k in t for k in FACTS_MYSTERY_KEYWORDS):
+        return {
+            "category": "facts_mystery",
+            "style": "viral",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "suspense_phonk",
+            "voice_energy": "dynamic",
+            "badge_title": "MIND-BLOWING FACTS",
+        }
+
+    # 8. Gaming
+    if any(k in t for k in GAMING_KEYWORDS):
+        return {
+            "category": "gaming",
+            "style": "viral",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "phonk_hype",
+            "voice_energy": "high",
+            "badge_title": topic.upper()[:40],
+        }
+
+    # 9. Sci-Fi & Cosmic Lore
+    if any(k in t for k in SCIFI_LORE_KEYWORDS):
+        return {
+            "category": "scifi_lore",
+            "style": "cinematic",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "cosmic_ambient",
+            "voice_energy": "dramatic",
             "badge_title": topic.upper()[:40],
         }
 
@@ -119,6 +220,7 @@ def classify_topic(topic: str) -> dict:
         "category": "general",
         "style": "cinematic",
         "visual_mode": "ai_image",
+        "audio_mode": "commentary_speech",
         "music_mood": "cinematic_epic",
         "voice_energy": "dynamic",
         "badge_title": topic.upper()[:40],
@@ -127,12 +229,19 @@ def classify_topic(topic: str) -> dict:
 
 def generate_scene_prompts(topic: str, category: str, n_scenes: int = 4) -> list:
     clean_topic = topic.strip()
-    if category == "anime":
+    if category in ("anime", "anime_scene"):
         prompts = [
             f"{clean_topic}, iconic character portrait, intense eyes, dynamic aura, high detail anime masterpiece, vertical 9:16 orientation, vibrant lighting, dramatic atmosphere",
             f"{clean_topic}, epic battle power clash, shockwaves and glowing particles, cinematic anime action shot, vertical 9:16, sakuga style, hyper-detailed",
             f"{clean_topic}, legendary transformation or ultimate attack stance, destroyed cityscape ruins background, vertical 9:16 anime wallpaper, 8k art",
             f"{clean_topic}, cinematic victory scene at dusk, dramatic shadows, mysterious silhouette, vertical 9:16, award-winning anime visual",
+        ]
+    elif category in ("movie", "movie_scene"):
+        prompts = [
+            f"{clean_topic}, iconic cinematic movie scene, dramatic lighting, 35mm film grain, vertical 9:16, IMAX cinema still",
+            f"{clean_topic}, intense character close-up dialogue moment, shallow depth of field, blockbuster movie aesthetic, vertical 9:16",
+            f"{clean_topic}, legendary cinematic confrontation or action sequence, anamorphic lens flare, vertical 9:16, cinematic masterpiece",
+            f"{clean_topic}, breathtaking wide cinematic climax shot, dramatic color grading, vertical 9:16 wallpaper",
         ]
     elif category == "gaming":
         prompts = [
@@ -169,24 +278,32 @@ def generate_scene_prompts(topic: str, category: str, n_scenes: int = 4) -> list
 
 
 def download_pollinations_image(prompt: str, out_path: str) -> bool:
-    """Downloads a free 1080x1920 AI image from Pollinations (default free model)."""
+    """Downloads a free 1080x1920 AI image from Pollinations with multi-model fallback."""
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     seed = random.randint(100000, 9999999)
     encoded = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={seed}"
 
-    logger.info("Generating AI scene with Pollinations...")
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (AI-Shorts-Factory/2.0)"})
-    try:
-        with urllib.request.urlopen(req, timeout=35) as resp:
-            data = resp.read()
-            if len(data) > 10000:
-                with open(out_path, "wb") as f:
-                    f.write(data)
-                logger.info("Generated AI scene saved to %s (%d bytes)", out_path, len(data))
-                return True
-    except Exception as e:
-        logger.warning("Pollinations image generation failed: %s", e)
+    # Try fast models in order: turbo, flux, then default
+    candidate_urls = [
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=turbo&nologo=true&seed={seed}",
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={seed}",
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true&seed={seed}",
+    ]
+
+    for candidate_url in candidate_urls:
+        logger.info("Generating AI scene with Pollinations...")
+        req = urllib.request.Request(candidate_url, headers={"User-Agent": "Mozilla/5.0 (AI-Shorts-Factory/2.0)"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+                if len(data) > 10000:
+                    with open(out_path, "wb") as f:
+                        f.write(data)
+                    logger.info("Generated AI scene saved to %s (%d bytes)", out_path, len(data))
+                    return True
+        except Exception as e:
+            logger.warning("Pollinations image attempt failed (%s): %s", candidate_url.split("&model=")[-1] if "&model=" in candidate_url else "default", e)
+            time.sleep(1.0)
 
     return False
 
@@ -208,33 +325,55 @@ def collect_scenes(topic: str, total_duration_sec: float, out_dir: str,
 
     # 1. Stock Video Mode (for Nature / Real-World)
     if info["visual_mode"] == "stock_video" and not mock_mode():
-        candidates = find_videos(topic)
-        if candidates:
-            downloaded_clips = []
-            from content_finder import _pick_file
-            for cand in candidates[:n_scenes]:
-                best_file, _ = _pick_file(cand.get("video_files", []))
-                if best_file and best_file.get("link"):
-                    dl = download_video(best_file["link"])
-                    if dl.get("status") == "SUCCESS":
-                        downloaded_clips.append(dl["file_path"])
+        from scripts.content_finder import find_videos, _pick_file
+        try:
+            from scripts.logger import get_used_asset_ids
+            used_ids = get_used_asset_ids()
+        except Exception:
+            used_ids = set()
 
-            if downloaded_clips:
-                for idx, clip in enumerate(downloaded_clips):
-                    dur = frames_per_scene + (remainder_frames if idx == len(downloaded_clips) - 1 else 0)
-                    scenes.append({
-                        "type": "video",
-                        "src": clip,
-                        "durationInFrames": dur,
-                    })
-                if callable(on_progress):
-                    on_progress("scenes", "done", f"Collected {len(scenes)} stock video clips")
-                return scenes
+        downloaded_clips = []
+        page = 1
+        while len(downloaded_clips) < n_scenes and page <= 3:
+            candidates = find_videos(topic, page=page)
+            if not candidates:
+                break
+            for cand in candidates:
+                cand_id = str(cand.get("id", ""))
+                if cand_id in used_ids or f"pexels_{cand_id}" in used_ids or f"pixabay_{cand_id}" in used_ids:
+                    continue
+                best_file, _ = _pick_file(cand.get("video_files", []))
+                if not best_file or not best_file.get("link"):
+                    continue
+                if best_file.get("link") in used_ids:
+                    continue
+                dl = download_video(best_file["link"])
+                if dl.get("status") == "SUCCESS":
+                    downloaded_clips.append({"file_path": dl["file_path"], "asset_id": cand_id, "url": best_file.get("link")})
+                    if len(downloaded_clips) >= n_scenes:
+                        break
+            page += 1
+
+        if downloaded_clips:
+            for idx, item in enumerate(downloaded_clips):
+                dur = frames_per_scene + (remainder_frames if idx == len(downloaded_clips) - 1 else 0)
+                scenes.append({
+                    "type": "video",
+                    "src": item["file_path"],
+                    "asset_id": item["asset_id"],
+                    "asset_url": item["url"],
+                    "durationInFrames": dur,
+                })
+            if callable(on_progress):
+                on_progress("scenes", "done", f"Collected {len(scenes)} fresh stock video clips")
+            return scenes
 
     # 2. AI Visual Generation Mode (Anime, Sci-Fi, Gaming, Facts, etc.)
     prompts = generate_scene_prompts(topic, info["category"], n_scenes)
 
     for idx, p in enumerate(prompts):
+        if idx > 0:
+            time.sleep(1.2)
         if callable(on_progress):
             on_progress("scenes", "running", f"Generating scene {idx+1}/{len(prompts)}")
         img_file = os.path.join(out_dir, f"scene_{idx}.jpg")

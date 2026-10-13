@@ -17,42 +17,61 @@ logger = logging.getLogger("script_writer")
 MAX_LINES = int(os.getenv("SCRIPT_MAX_LINES", "10"))
 
 GENRE_PROMPTS = {
-    "anime": """You write high-retention viral YouTube Shorts scripts about anime and manga.
+    "stoic": """You write viral, life-altering Stoic wisdom YouTube Shorts and Instagram Reels scripts.
 Topic: {topic}
-Format: 8 to {max_lines} punchy spoken sentences.
-- Line 1 is an irresistible hook (a bold claim, debate question, or shocking fact that grabs attention in 2 seconds).
-- Middle lines deliver the epic lore, power feats, or story breakdown with intense excitement and tension.
-- Final line is an engaging call-to-action or thought-provoking question (e.g. "Who takes the win? Let me know below!").
+Format: 4 to 6 punchy, profound spoken sentences (target 18-20 seconds total).
+- Line 1 is an electrifying mindset hook (e.g. "Most people realize this truth way too late.").
+- Middle lines deliver razor-sharp wisdom on self-mastery, emotional control, or resilience.
+- Final line connects seamlessly back into the hook for an infinite loop.
+No emojis, no stage directions, deep cinematic spoken English.
+Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
+
+    "tech_ai": """You write viral future tech and AI breakthrough YouTube Shorts and Instagram Reels scripts.
+Topic: {topic}
+Format: 4 to 6 fast-paced spoken sentences (target 18-20 seconds total).
+- Line 1 is a mind-bending hook about a technology that feels illegal or futuristic.
+- Middle lines rapidly explain how it works and how it shatters the status quo.
+- Final line triggers a debate or infinite loop.
 No emojis, no stage directions, conversational spoken English.
 Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
 
-    "facts_mystery": """You write suspenseful, viral "Did You Know" and mystery YouTube Shorts scripts.
+    "facts_mystery": """You write suspenseful, viral mystery and dark psychology YouTube Shorts scripts.
 Topic: {topic}
-Format: 8 to {max_lines} short spoken sentences.
-- Line 1 is a mind-bending hook or paradox.
-- Middle lines unfold the unbelievable truth, science, or psychological mystery one point at a time.
-- Final line leaves the viewer questioning reality.
+Format: 4 to 6 short spoken sentences (target 18-20 seconds total).
+- Line 1 is an irresistible curiosity hook or paradox that stops the scroll instantly.
+- Middle lines unfold the unbelievable truth or psychology glitch point by point.
+- Final line leaves the viewer stunned and seamlessly loops back to line 1.
+No emojis, no stage directions, conversational spoken English.
+Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
+
+    "anime": """You write high-retention viral YouTube Shorts scripts about anime and manga.
+Topic: {topic}
+Format: 4 to 6 punchy spoken sentences (target 18-20 seconds total).
+- Line 1 is an irresistible hook (a bold claim or shocking feat that grabs attention in 2 seconds).
+- Middle lines deliver the epic lore or power feats with intense excitement.
+- Final line asks who wins or loops back.
 No emojis, no stage directions, conversational spoken English.
 Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
 
     "gaming": """You write high-octane, viral gaming YouTube Shorts scripts.
 Topic: {topic}
-Format: 8 to {max_lines} punchy spoken sentences.
-- Line 1 is a bold gaming hook (secret trick, hidden lore, or impossible feat).
-- Middle lines break down what makes this legendary or broken.
+Format: 4 to 6 punchy spoken sentences (target 18-20 seconds total).
+- Line 1 is a bold gaming hook (secret trick, broken mechanic, or impossible feat).
+- Middle lines break down what makes this legendary.
 - Final line asks gamers for their take.
 No emojis, no stage directions.
 Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
 
-    "general": """You write scripts for 45-60 second vertical video commentary reels.
+    "general": """You write viral vertical video scripts designed for 100%+ retention rate.
 Topic: {topic}
-Format: 8 to {max_lines} short spoken sentences.
-- Line 1 is a bold hook.
-- Middle lines deliver surprising insights and high-energy narrative.
-- Final line is a memorable punchline takeaway.
+Format: 4 to 6 short spoken sentences (target 18-20 seconds total).
+- Line 1 is a bold, scroll-stopping hook.
+- Middle lines deliver surprising insights.
+- Final line loops back into the first sentence.
 No emojis, no stage directions.
 Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
 }
+
 
 
 def _clean_lines(text: str) -> list:

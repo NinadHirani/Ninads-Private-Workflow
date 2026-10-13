@@ -326,6 +326,11 @@ def cmd_service(args):
             print(f"Service '{PLIST_LABEL}' is NOT loaded in launchd.")
 
 
+def cmd_clean(args):
+    from scripts.purge_and_index import run_purge_and_index
+    run_purge_and_index(dry_run=args.dry_run)
+
+
 def cmd_tunnel(args):
     port = args.port
     print("=" * 60)
@@ -351,6 +356,8 @@ def main():
     p_start.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
     sub.add_parser("stop", help="Stop the maker immediately")
     sub.add_parser("status", help="Show what has been made and maker state")
+    p_clean = sub.add_parser("clean", help="Index history into deduplication and purge media files")
+    p_clean.add_argument("--dry-run", action="store_true", help="Preview files to be deleted without removing them")
     p_ui = sub.add_parser("ui", help="Start mobile web control center")
     p_ui.add_argument("--port", type=int, default=8088, help="Port to listen on (default: 8088)")
     p_ui.add_argument("--host", type=str, default="0.0.0.0", help="Host binding (default: 0.0.0.0)")
@@ -368,6 +375,7 @@ def main():
         "start": cmd_start,
         "stop": cmd_stop,
         "status": cmd_status,
+        "clean": cmd_clean,
         "ui": cmd_ui,
         "service": cmd_service,
         "tunnel": cmd_tunnel,

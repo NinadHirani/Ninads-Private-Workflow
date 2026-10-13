@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -7,14 +6,24 @@ import {
   Easing,
   Img,
   Video,
+  staticFile,
 } from 'remotion';
 import { SceneItem, VideoStyle } from './types';
+
+const resolveMediaSrc = (src: string): string => {
+  if (!src) return '';
+  if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')) {
+    return src;
+  }
+  return staticFile(src);
+};
 
 const SingleScene: React.FC<{
   scene: SceneItem;
   index: number;
   style?: VideoStyle;
-}> = ({ scene, index, style = 'anime' }) => {
+  useOriginalAudio?: boolean;
+}> = ({ scene, index, style = 'anime', useOriginalAudio = false }) => {
   const frame = useCurrentFrame();
   const duration = scene.durationInFrames;
 
@@ -53,6 +62,9 @@ const SingleScene: React.FC<{
     }
   );
 
+  const mediaSrc = resolveMediaSrc(scene.src);
+  const sceneVolume = scene.volume !== undefined ? scene.volume : (useOriginalAudio ? 1.0 : 0.0);
+
   return (
     <AbsoluteFill
       style={{
@@ -71,7 +83,8 @@ const SingleScene: React.FC<{
       >
         {scene.type === 'video' ? (
           <Video
-            src={scene.src}
+            src={mediaSrc}
+            volume={sceneVolume}
             style={{
               width: '100%',
               height: '100%',
@@ -80,7 +93,7 @@ const SingleScene: React.FC<{
           />
         ) : (
           <Img
-            src={scene.src}
+            src={mediaSrc}
             style={{
               width: '100%',
               height: '100%',
@@ -116,7 +129,8 @@ const SingleScene: React.FC<{
 export const SceneRenderer: React.FC<{
   scenes: SceneItem[];
   style?: VideoStyle;
-}> = ({ scenes, style }) => {
+  useOriginalAudio?: boolean;
+}> = ({ scenes, style, useOriginalAudio = false }) => {
   let accumulatedFrames = 0;
 
   return (
@@ -131,7 +145,12 @@ export const SceneRenderer: React.FC<{
             from={fromFrame}
             durationInFrames={scene.durationInFrames}
           >
-            <SingleScene scene={scene} index={idx} style={style} />
+            <SingleScene
+              scene={scene}
+              index={idx}
+              style={style}
+              useOriginalAudio={useOriginalAudio}
+            />
           </Sequence>
         );
       })}

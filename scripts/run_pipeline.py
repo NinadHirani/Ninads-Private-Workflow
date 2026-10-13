@@ -21,11 +21,11 @@ import logging
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from scripts.archive import archive_processed_media
-from scripts.content_finder import find_videos, rank_and_select_video, mock_mode, real_key
+from scripts.archive import archive_processed_media, delete_processed_media
+from scripts.content_finder import find_videos, rank_and_select_video, find_fresh_candidate, mock_mode, real_key
 from scripts.downloader import download_video
 from scripts.editor import edit_video
-from scripts.logger import log_execution
+from scripts.logger import log_execution, mark_asset_used, mark_topic_used
 from scripts.metadata_generator import generate_metadata
 from scripts.uploader import upload_to_youtube
 from scripts.instagram_uploader import upload_to_instagram
@@ -66,9 +66,9 @@ def produce(topic: str, duration: int = 30, style: str = None, logo: str = None,
         return fail("find", "No video API key set. Add a free PEXELS_API_KEY or PIXABAY_API_KEY to .env, or set SHORTS_MOCK=1 for a test run.")
 
     notify("find", "running", topic)
-    candidate = rank_and_select_video(find_videos(topic))
+    candidate = find_fresh_candidate(topic)
     if not candidate:
-        return fail("find", f"No usable video found for '{topic}'")
+        return fail("find", f"No usable unused video found for '{topic}'")
     steps["find"] = candidate
     notify("find", "done")
 
@@ -215,6 +215,8 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
         logger.warning("YouTube quota exceeded. Short preserved in deliverables/: %s", deliverable_video)
         log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
                       execution_time_sec=elapsed)
+        if not keep_files:
+            delete_processed_media(raw_path=raw_path, edited_path=edited_path)
         return {"status": "SUCCESS", "mode": "LOCAL_QUEUE", "topic": topic, "style": style,
                 "youtube_url": "", "deliverable_file": deliverable_video,
                 "instagram": ig.get("status"), "instagram_url": ig.get("instagram_url", ""),
@@ -227,6 +229,8 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
         log_execution(topic, log_status, os.path.basename(edited_path),
                       execution_time_sec=round(time.time() - started, 2),
                       error_message=f"upload: {upload.get('error')}")
+        if not keep_files:
+            delete_processed_media(raw_path=raw_path, edited_path=edited_path)
         if ig.get("status") == "SUCCESS":
             return {"status": "SUCCESS", "mode": "PRODUCTION", "topic": topic,
                     "youtube_url": "", "deliverable_file": deliverable_video,
@@ -239,8 +243,22 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
     elapsed = round(time.time() - started, 2)
     log_execution(topic, "SUCCESS", os.path.basename(edited_path), upload["video_id"], upload["youtube_url"],
                   execution_time_sec=elapsed)
+
+    # Mark topic and assets as used to prevent repetition
+    mark_topic_used(topic)
+    find_step = steps.get("find", {})
+    if find_step.get("video_id"):
+        mark_asset_used(str(find_step["video_id"]), topic=topic)
+    if find_step.get("video_url"):
+        mark_asset_used(str(find_step["video_url"]), topic=topic)
+
     if not keep_files:
-        steps["archive"] = archive_processed_media(raw_path, edited_path)
+        steps["cleanup"] = delete_processed_media(
+            raw_path=raw_path,
+            edited_path=edited_path,
+            deliverable_video=deliverable_video,
+            deliverable_meta=deliverable_meta
+        )
 
     return {"status": "SUCCESS", "mode": upload.get("mode"), "topic": topic, "youtube_url": upload["youtube_url"],
             "deliverable_file": deliverable_video,

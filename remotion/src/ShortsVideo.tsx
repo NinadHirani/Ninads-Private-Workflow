@@ -18,14 +18,17 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
   words,
   musicSrc,
   musicVolume = 0.18,
+  ambientSrc,
+  ambientVolume = 0.65,
   style = 'anime',
   title,
   logoSrc,
+  useOriginalAudio = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Top header badge animation (enters during first 15 frames, stays for 4 seconds, fades out)
+  // Top header badge animation (enters during first 15 frames, stays for 4.5 seconds, fades out)
   const headerEntrance = spring({
     frame,
     fps,
@@ -42,22 +45,31 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: '#000000' }}>
       {/* Visual Scenes with Ken Burns camera motion */}
-      <SceneRenderer scenes={scenes} style={style} />
+      <SceneRenderer
+        scenes={scenes}
+        style={style}
+        useOriginalAudio={useOriginalAudio}
+      />
 
-      {/* Voiceover Spoken Audio */}
-      {voiceoverSrc ? <Audio src={voiceoverSrc} /> : null}
+      {/* Ambient Soundscape Track (rain, ocean surf, forest wind ASMR) */}
+      {ambientSrc ? (
+        <Audio src={ambientSrc} volume={ambientVolume} loop />
+      ) : null}
 
-      {/* Background Music Track */}
-      {musicSrc ? (
+      {/* Background Music Track (only played if volume > 0) */}
+      {musicSrc && musicVolume > 0 ? (
         <Audio src={musicSrc} volume={musicVolume} loop />
       ) : null}
+
+      {/* Spoken AI Voiceover (only played in commentary mode, never over original scene voice) */}
+      {!useOriginalAudio && voiceoverSrc ? <Audio src={voiceoverSrc} /> : null}
 
       {/* Optional Top Hook Header / Topic Badge */}
       {title ? (
         <div
           style={{
             position: 'absolute',
-            top: 100,
+            top: 90,
             left: 30,
             right: 30,
             display: 'flex',
@@ -70,26 +82,38 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
         >
           <div
             style={{
-              padding: '14px 28px',
-              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              padding: style === 'chill' ? '12px 24px' : '14px 28px',
+              backgroundColor:
+                style === 'chill'
+                  ? 'rgba(15, 23, 42, 0.75)'
+                  : 'rgba(0, 0, 0, 0.75)',
               border:
                 style === 'anime'
                   ? '2px solid #FFE500'
+                  : style === 'chill'
+                  ? '1px solid rgba(255, 255, 255, 0.25)'
                   : '2px solid rgba(255, 255, 255, 0.3)',
               borderRadius: 30,
               boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7)',
-              backdropFilter: 'blur(10px)',
+              backdropFilter: 'blur(12px)',
             }}
           >
             <span
               style={{
                 fontFamily:
-                  'Impact, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                fontSize: 34,
-                fontWeight: 900,
-                letterSpacing: 2,
+                  style === 'chill'
+                    ? '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                    : 'Impact, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                fontSize: style === 'chill' ? 24 : 32,
+                fontWeight: style === 'chill' ? 700 : 900,
+                letterSpacing: style === 'chill' ? 1.5 : 2,
                 textTransform: 'uppercase',
-                color: style === 'anime' ? '#FFE500' : '#FFFFFF',
+                color:
+                  style === 'anime'
+                    ? '#FFE500'
+                    : style === 'chill'
+                    ? '#F8FAFC'
+                    : '#FFFFFF',
                 textShadow: '0 2px 10px rgba(0,0,0,0.8)',
               }}
             >
@@ -99,8 +123,10 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
         </div>
       ) : null}
 
-      {/* Dynamic Word-by-Word Kinetic Captions */}
-      <CaptionsOverlay words={words} style={style} />
+      {/* Dynamic Word-by-Word Kinetic Captions (renders null if words is empty) */}
+      {words && words.length > 0 ? (
+        <CaptionsOverlay words={words} style={style} />
+      ) : null}
 
       {/* Logo Watermark (Corner) */}
       {logoSrc ? (

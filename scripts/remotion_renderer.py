@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import base64
 import logging
 import subprocess
@@ -60,49 +61,113 @@ def normalize_words(words: list, total_duration_sec: float = 30.0, fallback_text
 
 def render_with_remotion(
     scenes: list,
-    voiceover_wav: str,
-    words: list,
-    output_mp4: str,
+    voiceover_wav: str = None,
+    words: list = None,
+    output_mp4: str = "",
     title: str = "",
     style: str = "anime",
     music_src: str = None,
+    music_volume: float = 0.18,
+    ambient_src: str = None,
+    ambient_volume: float = 0.65,
     logo_src: str = None,
     fallback_text: str = "",
+    use_original_audio: bool = False,
     on_progress=None,
 ) -> dict:
     started = time.time()
     os.makedirs(os.path.dirname(os.path.abspath(output_mp4)), exist_ok=True)
 
+    if os.getenv("SHORTS_MOCK") == "1":
+        total_frames = max(30, sum(s.get("durationInFrames", 30) for s in scenes))
+        dur = total_frames / 30.0
+        sample = os.getenv("SHORTS_SAMPLE_VIDEO") or os.path.join(ROOT, "tests", "sample.mp4")
+        if os.path.exists(sample):
+            subprocess.run([
+                "ffmpeg", "-y", "-i", sample, "-t", str(int(dur)),
+                "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+                "-c:v", "libx264", "-c:a", "aac", output_mp4
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=black:s=1080x1920:d={dur}",
+                            "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={dur}", "-c:v", "libx264", "-c:a", "aac", output_mp4],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {
+            "status": "SUCCESS",
+            "file_path": output_mp4,
+            "duration_frames": total_frames,
+            "duration_sec": round(dur, 2),
+            "render_time_sec": 0.1,
+        }
+
+    run_id = f"run_{int(time.time() * 1000)}"
+    public_assets_dir = os.path.join(REMOTION_DIR, "public", "assets", run_id)
+    os.makedirs(public_assets_dir, exist_ok=True)
+    props_file = None
+
     try:
-        # 1. Voiceover data URI
+        # 1. Voiceover data URI (if provided and not in original audio mode)
         vo_uri = ""
-        if voiceover_wav and os.path.exists(voiceover_wav):
+        if not use_original_audio and voiceover_wav and os.path.exists(voiceover_wav):
             vo_uri = file_to_data_uri(voiceover_wav, "audio/wav")
 
         # 2. Process Scenes
         processed_scenes = []
         for idx, sc in enumerate(scenes):
-            src_path = sc["src"]
+            raw_src = sc.get("src", "")
+            src_path = raw_src if os.path.isabs(raw_src) else os.path.join(ROOT, raw_src)
+            sc_vol = sc.get("volume")
+            if sc_vol is None:
+                sc_vol = 1.0 if use_original_audio else 0.0
+
             if sc["type"] == "image" and os.path.exists(src_path):
                 img_uri = file_to_data_uri(src_path, "image/jpeg")
                 processed_scenes.append({
                     "type": "image",
                     "src": img_uri,
                     "durationInFrames": sc["durationInFrames"],
+                    "volume": sc_vol,
+                })
+            elif sc["type"] == "video" and os.path.exists(src_path):
+                # Stage video inside remotion/public/assets for reliable Chromium playback
+                ext = os.path.splitext(src_path)[1] or ".mp4"
+                staged_name = f"clip_{idx}{ext}"
+                staged_path = os.path.join(public_assets_dir, staged_name)
+                try:
+                    shutil.copy2(src_path, staged_path)
+                    relative_src = f"assets/{run_id}/{staged_name}"
+                except Exception as e:
+                    logger.warning("Could not stage video clip %s: %s", src_path, e)
+                    relative_src = src_path
+                processed_scenes.append({
+                    "type": "video",
+                    "src": relative_src,
+                    "durationInFrames": sc["durationInFrames"],
+                    "volume": sc_vol,
                 })
             else:
-                # Video files or fallback URLs
                 processed_scenes.append({
                     "type": sc["type"],
                     "src": sc["src"],
                     "durationInFrames": sc["durationInFrames"],
+                    "volume": sc_vol,
                 })
 
         # 3. Background Music data URI if present
         music_uri = None
-        if music_src and os.path.exists(music_src):
-            ext = os.path.splitext(music_src)[1].lstrip(".") or "mp3"
-            music_uri = file_to_data_uri(music_src, f"audio/{ext}")
+        if music_src and (not use_original_audio or music_volume > 0):
+            abs_music = music_src if os.path.isabs(music_src) else os.path.join(ROOT, music_src)
+            if os.path.exists(abs_music):
+                ext = os.path.splitext(abs_music)[1].lstrip(".") or "mp3"
+                music_uri = file_to_data_uri(abs_music, f"audio/{ext}")
+
+        # 3b. Ambient Soundscape data URI if present (nature ASMR)
+        ambient_uri = None
+        if ambient_src:
+            abs_ambient = ambient_src if os.path.isabs(ambient_src) else os.path.join(ROOT, ambient_src)
+            if os.path.exists(abs_ambient):
+                ext = os.path.splitext(abs_ambient)[1].lstrip(".") or "mp3"
+                ambient_uri = file_to_data_uri(abs_ambient, f"audio/{ext}")
 
         # 4. Logo data URI if present
         logo_uri = None
@@ -112,18 +177,21 @@ def render_with_remotion(
         total_frames = sum(s["durationInFrames"] for s in processed_scenes)
         total_sec = total_frames / 30.0
 
-        clean_words = normalize_words(words, total_duration_sec=total_sec, fallback_text=fallback_text)
+        clean_words = [] if use_original_audio else normalize_words(words or [], total_duration_sec=total_sec, fallback_text=fallback_text)
 
         props = {
             "scenes": processed_scenes,
             "voiceoverSrc": vo_uri,
             "words": clean_words,
             "musicSrc": music_uri,
-            "musicVolume": 0.16,
+            "musicVolume": music_volume,
+            "ambientSrc": ambient_uri,
+            "ambientVolume": ambient_volume,
             "style": style,
             "title": title,
             "logoSrc": logo_uri,
             "durationInFrames": max(30, total_frames),
+            "useOriginalAudio": use_original_audio,
         }
 
         props_file = os.path.join(ROOT, "remotion", f"props_{int(time.time() * 1000)}.json")
@@ -146,7 +214,6 @@ def render_with_remotion(
             "--gl=angle",
         ]
 
-        logger.info("Executing Remotion render: %s", " ".join(cmd))
         proc = subprocess.run(
             cmd,
             cwd=REMOTION_DIR,
@@ -155,12 +222,6 @@ def render_with_remotion(
             text=True,
             timeout=int(os.getenv("FFMPEG_TIMEOUT_SEC", "600")),
         )
-
-        try:
-            if os.path.exists(props_file):
-                os.remove(props_file)
-        except Exception:
-            pass
 
         if proc.returncode != 0:
             logger.error("Remotion render failed with exit code %d:\n%s", proc.returncode, proc.stdout)
@@ -194,3 +255,14 @@ def render_with_remotion(
     except Exception as exc:
         logger.exception("Error during Remotion render")
         return {"status": "FAILED", "error": str(exc)}
+    finally:
+        try:
+            if props_file and os.path.exists(props_file):
+                os.remove(props_file)
+        except Exception:
+            pass
+        try:
+            if public_assets_dir and os.path.exists(public_assets_dir):
+                shutil.rmtree(public_assets_dir, ignore_errors=True)
+        except Exception:
+            pass
