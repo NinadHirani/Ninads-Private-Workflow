@@ -336,11 +336,12 @@ def cmd_tunnel(args):
     print("=" * 60)
     print("  🌐 SECURE HTTPS TUNNEL FOR VERCEL MOBILE APP")
     print(f"  Target: http://localhost:{port}")
+    print(f"  Tunnel URL: https://ninad-shorts.loca.lt")
     print("=" * 60)
-    print("Starting secure tunnel... Copy the HTTPS URL into your Vercel Settings.")
+    print("Starting secure tunnel... Connects automatically with Vercel!")
     print("Press Ctrl+C to stop tunnel.")
     try:
-        subprocess.run(["npx", "-y", "localtunnel", "--port", str(port)])
+        subprocess.run(["npx", "-y", "localtunnel", "--port", str(port), "--subdomain", "ninad-shorts"])
     except KeyboardInterrupt:
         print("\nTunnel closed.")
 

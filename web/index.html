@@ -964,6 +964,23 @@
 
   <!-- TAB 1: CREATOR STUDIO (DEFAULT) -->
   <div id="tab-creator" class="tab-content active">
+    <!-- Remote Setup Banner (hidden when backend is connected) -->
+    <div id="setupBanner" style="display:none; background:linear-gradient(135deg, rgba(99,102,241,0.18), rgba(236,72,153,0.14)); border:1px solid rgba(99,102,241,0.35); border-radius:16px; padding:18px 16px; margin-bottom:14px; text-align:center;">
+      <div style="font-size:24px; margin-bottom:6px;">📡</div>
+      <div style="font-size:15px; font-weight:700; color:#e2e8f0; margin-bottom:4px;">Mac Engine Standby</div>
+      <div style="font-size:12px; color:#94a3b8; line-height:1.5; margin-bottom:12px;">
+        Connecting to: <code id="bannerCurrentHost" style="color:#a5b4fc; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">https://ninad-shorts.loca.lt</code><br>
+        Make sure your Mac is running <code>python scripts/shortsctl.py tunnel</code>
+      </div>
+      <div style="display:flex; gap:6px; max-width:360px; margin:0 auto;">
+        <input id="quickConnectInput" type="text" placeholder="https://ninad-shorts.loca.lt" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:#e2e8f0; font-size:13px; outline:none;">
+        <button onclick="quickConnect()" style="padding:10px 14px; background:#6366f1; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Connect</button>
+      </div>
+      <div style="display:flex; justify-content:center; gap:8px; margin-top:10px;">
+        <button onclick="recheckConnection()" style="padding:6px 14px; background:rgba(255,255,255,0.06); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:12px; cursor:pointer;">🔄 Retry Connection</button>
+        <button onclick="useDefaultTunnel()" style="padding:6px 14px; background:rgba(99,102,241,0.15); color:#c7d2fe; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-size:12px; cursor:pointer;">⚡️ Use Default Tunnel</button>
+      </div>
+    </div>
     <div class="studio-card">
       <div class="studio-header">
         <div class="studio-title">
@@ -1177,7 +1194,18 @@
 
   <script>
     // Remote / Local API Gateway
-    let apiBase = localStorage.getItem('shorts_factory_api_base') || '';
+    const DEFAULT_REMOTE_BACKEND = 'https://ninad-shorts.loca.lt';
+    let apiBase = localStorage.getItem('shorts_factory_api_base');
+    const isRemoteHost = location.hostname.includes('vercel.app') || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
+
+    if (isRemoteHost) {
+      if (!apiBase || (location.protocol === 'https:' && apiBase.startsWith('http://'))) {
+        apiBase = DEFAULT_REMOTE_BACKEND;
+        localStorage.setItem('shorts_factory_api_base', apiBase);
+      }
+    } else if (apiBase === null) {
+      apiBase = '';
+    }
 
     function apiUrl(path) {
       if (!apiBase) return path;
@@ -1198,32 +1226,48 @@
       checkConnectionHealth();
       fetchStatus();
       fetchDeliverables();
+      updateSetupBanner();
       alert(val ? 'Host configured! Connected to ' + val : 'Reset to local origin.');
     }
 
     function resetApiBase() {
       localStorage.removeItem('shorts_factory_api_base');
-      apiBase = '';
-      document.getElementById('apiBaseInput').value = '';
+      apiBase = isRemoteHost ? DEFAULT_REMOTE_BACKEND : '';
+      if (apiBase) localStorage.setItem('shorts_factory_api_base', apiBase);
+      document.getElementById('apiBaseInput').value = apiBase;
       checkConnectionHealth();
       fetchStatus();
       fetchDeliverables();
-      alert('Reset to local origin.');
+      updateSetupBanner();
+      alert(apiBase ? 'Reset to default tunnel: ' + apiBase : 'Reset to local origin.');
     }
 
     async function checkConnectionHealth() {
       const badge = document.getElementById('connStatusBadge');
-      if (!badge) return;
+      const banner = document.getElementById('setupBanner');
+      const bannerHost = document.getElementById('bannerCurrentHost');
+      if (bannerHost) bannerHost.innerText = apiBase || 'No endpoint configured';
       try {
         const res = await apiFetch('/api/status');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        badge.style.background = 'rgba(16, 185, 129, 0.15)';
-        badge.style.color = '#34d399';
-        badge.innerText = `Connected (${data.running ? 'PID ' + data.pid : 'Standby'})`;
+        if (badge) {
+          badge.style.background = 'rgba(16, 185, 129, 0.15)';
+          badge.style.color = '#34d399';
+          badge.innerText = `Connected (${data.running ? 'PID ' + data.pid : 'Standby'})`;
+        }
+        if (banner) banner.style.display = 'none';
+        return true;
       } catch (e) {
-        badge.style.background = 'rgba(239, 68, 68, 0.15)';
-        badge.style.color = '#f87171';
-        badge.innerText = 'Offline / Unreachable';
+        if (badge) {
+          badge.style.background = 'rgba(239, 68, 68, 0.15)';
+          badge.style.color = '#f87171';
+          badge.innerText = 'Offline / Standby';
+        }
+        if (banner && isRemoteHost) {
+          banner.style.display = 'block';
+        }
+        return false;
       }
     }
 
@@ -1380,7 +1424,15 @@
           progressCard.classList.remove('active');
         }
       } catch (err) {
-        alert('Network error: ' + err);
+        const isRemote = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && !location.hostname.startsWith('192.');
+        if (isRemote && !apiBase) {
+          if (confirm('⚠️ No backend connected!\n\nYour Mac\'s Shorts Factory server isn\'t linked yet. Go to Settings to enter your Mac\'s IP address?')) {
+            switchTab('settings');
+            setTimeout(() => document.getElementById('apiBaseInput')?.focus(), 300);
+          }
+        } else {
+          alert('Cannot reach backend: ' + err.message + '\n\nMake sure your Mac server is running (python scripts/shortsctl.py service restart).');
+        }
         createBtn.disabled = false;
         createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
         progressCard.classList.remove('active');
@@ -1460,7 +1512,7 @@
       const player = document.getElementById('resultVideoPlayer');
       const filename = (res.deliverable_file || '').split('/').pop();
       if (filename) {
-        player.src = '/deliverables/' + filename;
+        player.src = apiUrl('/deliverables/' + filename);
       }
 
       const metaEl = document.getElementById('resultMetaInfo');
@@ -1616,11 +1668,59 @@
       }
     }
 
+    // Quick-connect helpers
+    function quickConnect() {
+      const val = (document.getElementById('quickConnectInput').value || '').trim() || DEFAULT_REMOTE_BACKEND;
+      localStorage.setItem('shorts_factory_api_base', val);
+      apiBase = val;
+      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = val;
+      checkConnectionHealth();
+      fetchStatus();
+      fetchDeliverables();
+      alert('Host updated to: ' + val);
+    }
+
+    function useDefaultTunnel() {
+      localStorage.setItem('shorts_factory_api_base', DEFAULT_REMOTE_BACKEND);
+      apiBase = DEFAULT_REMOTE_BACKEND;
+      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = DEFAULT_REMOTE_BACKEND;
+      if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = DEFAULT_REMOTE_BACKEND;
+      checkConnectionHealth();
+      fetchStatus();
+      fetchDeliverables();
+    }
+
+    function recheckConnection() {
+      checkConnectionHealth().then(ok => {
+        if (ok) {
+          fetchStatus();
+          fetchDeliverables();
+          alert('Successfully connected to Mac engine!');
+        } else {
+          alert('Could not reach ' + (apiBase || 'endpoint') + '.\n\nPlease verify your Mac is running: python scripts/shortsctl.py tunnel');
+        }
+      });
+    }
+
+    function updateSetupBanner() {
+      const banner = document.getElementById('setupBanner');
+      if (!banner) return;
+      if (!isRemoteHost) {
+        banner.style.display = 'none';
+        return;
+      }
+      checkConnectionHealth();
+    }
+
     // Initialize
+    if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = apiBase || '';
+    if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = apiBase || '';
     updateGenreClassification();
+    checkConnectionHealth();
     fetchStatus();
     fetchDeliverables();
     setInterval(fetchStatus, 3000);
+    setInterval(checkConnectionHealth, 10000);
     setInterval(() => {
       if (document.getElementById('tab-logs').classList.contains('active')) fetchLogs();
     }, 3000);

@@ -107,6 +107,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -114,7 +116,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
 
     def do_HEAD(self):
@@ -363,6 +365,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(file_size))
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         if not head_only:
@@ -387,6 +390,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             if not head_only:
                 try:
@@ -401,6 +405,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if not range_match:
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{file_size}")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             return
 
@@ -409,6 +414,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if first_byte >= file_size or last_byte >= file_size:
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{file_size}")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             return
 
@@ -418,6 +424,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Range", f"bytes {first_byte}-{last_byte}/{file_size}")
         self.send_header("Content-Length", str(length))
         self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
         try:
