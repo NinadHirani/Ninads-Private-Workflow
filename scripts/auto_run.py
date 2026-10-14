@@ -92,8 +92,24 @@ def load_state():
 def save_state(state):
     os.makedirs(LOG_DIR, exist_ok=True)
     state["last_updated"] = datetime.datetime.now().isoformat()
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
+    # Atomic write: a crash mid-write must never corrupt auto_state.json.
+    # load_state() falls back to a fresh state on a corrupt file, which would
+    # silently reset run history, the topic-dedup input and the daily-cap count.
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
+    os.replace(tmp, STATE_FILE)
+
+
+def _sleep_with_stop(total_seconds, check_stop):
+    """Sleep in 1-second ticks so the STOP file is honored within a second
+    (e.g. during the 30-minute daily-cap nap). Returns True when stop was
+    requested during the wait."""
+    for _ in range(max(0, int(total_seconds))):
+        if check_stop():
+            return True
+        time.sleep(1)
+    return False
 
 
 from scripts.logger import is_topic_used, mark_topic_used, get_used_topics
@@ -204,7 +220,8 @@ def main():
                          if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL") and r.get("at", "").startswith(today))
         if max_per_day and today_made >= max_per_day:
             logger.info("Daily cap %d reached. Sleeping 30 minutes.", max_per_day)
-            time.sleep(1800)
+            if _sleep_with_stop(1800, stop_requested):
+                break
             continue
 
         topic = next(next_topics)
@@ -256,10 +273,8 @@ def main():
 
         if stop_requested():
             break
-        for _ in range(gap):
-            if stop_requested():
-                break
-            time.sleep(1)
+        if _sleep_with_stop(gap, stop_requested):
+            break
 
     logger.info("Maker stopped. Total Shorts made this session: %d.",
                 sum(1 for r in state["runs"] if r.get("status") in ("SUCCESS", "SUCCESS_LOCAL")))
