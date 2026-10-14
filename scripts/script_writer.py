@@ -12,6 +12,15 @@ import re
 import logging
 import random
 
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text):
+            return text
+
 logger = logging.getLogger("script_writer")
 
 MAX_LINES = int(os.getenv("SCRIPT_MAX_LINES", "10"))
@@ -197,7 +206,7 @@ def write_script(topic: str, category: str = None) -> dict:
                     "caption": topic.upper()[:60],
                 }
         except Exception as exc:
-            logger.warning("%s failed (%s), trying next writer", writer, exc)
+            logger.warning("%s failed (%s), trying next writer", writer, redact(str(exc)))
 
     lines = _genre_templates(topic, category)
     logger.info("Script written with built-in genre template (%d lines, category=%s)", len(lines), category)

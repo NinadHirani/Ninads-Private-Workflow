@@ -74,7 +74,7 @@ def _backup_session_file(reason: str) -> None:
         os.replace(SESSION_FILE, backup)
         logger.warning("Cached Instagram session set aside as %s (%s)", backup, reason)
     except OSError as exc:
-        logger.warning("Could not back up the cached Instagram session (%s)", exc)
+        logger.warning("Could not back up the cached Instagram session (%s)", _redact(str(exc)))
 
 
 def _login_with_recovery(cl, username: str, password: str):
@@ -93,7 +93,7 @@ def _login_with_recovery(cl, username: str, password: str):
         try:
             cl.load_settings(SESSION_FILE)
         except Exception as exc:
-            logger.warning("Cached Instagram session unreadable (%s); starting fresh", exc)
+            logger.warning("Cached Instagram session unreadable (%s); starting fresh", _redact(str(exc)))
             _backup_session_file("unreadable")
             had_session = False
     try:
@@ -104,7 +104,7 @@ def _login_with_recovery(cl, username: str, password: str):
     except Exception as exc:
         if not had_session:
             raise
-        logger.warning("Login with the cached session failed (%s); retrying fresh", exc)
+        logger.warning("Login with the cached session failed (%s); retrying fresh", _redact(str(exc)))
         _backup_session_file("stale")
         cl = _new_client()
         cl.login(username, password)
