@@ -27,6 +27,15 @@ STATE_FILE = os.path.join(LOG_DIR, "auto_state.json")
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"),
                     format="%(asctime)s - %(levelname)s - %(message)s")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 logger = logging.getLogger("auto_run")
 
 import atexit
@@ -95,6 +104,13 @@ PROCEDURAL_ANGLES = [
     "cinematic journey through", "fascinating phenomena of", "calming sounds of"
 ]
 
+def _gemini_url_and_headers(key: str):
+    """Gemini endpoint with the API key in a header, never in the URL: request URLs
+    end up in logs and error reports far more easily than headers do."""
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    return url, {"Content-Type": "application/json", "x-goog-api-key": key}
+
+
 def generate_ai_topics(niche_context: str, count: int = 10) -> list:
     key = os.getenv("GEMINI_API_KEY")
     if not key:
@@ -107,9 +123,9 @@ Generate {count} unique, high-retention, specific YouTube Short topics.
 Avoid repeating or closely matching any of these existing topics: {used}
 Output ONLY a raw JSON array of strings, for example: ["topic 1", "topic 2"]."""
     try:
-        url = ("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + key)
+        url, headers = _gemini_url_and_headers(key)
         body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(url, data=body, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as resp:
             out = json.loads(resp.read().decode())
         text = out["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -119,7 +135,7 @@ Output ONLY a raw JSON array of strings, for example: ["topic 1", "topic 2"]."""
         if isinstance(items, list):
             return [str(x).strip() for x in items if str(x).strip()]
     except Exception as e:
-        logger.warning(f"Could not generate AI topics with Gemini: {e}")
+        logger.warning("Could not generate AI topics with Gemini: %s", redact(str(e)))
     return []
 
 def generate_procedural_topics(base_topics: list) -> list:
