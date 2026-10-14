@@ -97,39 +97,129 @@ def test_stale_session_recovered(monkeypatch, tmp_path):
     monkeypatch.setattr(ig, "SESSION_FILE", str(session))
     monkeypatch.setattr(ig, "_backup_session_file", ig._backup_session_file)
 
-    class Client:
-        username = "user"
-
-        def __init__(self):
-            self.saved = 0
-
-        def load_settings(self, path):
-            assert path == str(session)
-
-        def login(self, u, p):
-            if os.path.exists(str(session)):
-                raise FakeError("connection reset on cached session")
-            self.logged_fresh = True
-
-        def dump_settings(self, path):
-            self.saved += 1
-            with open(path, "w") as f:
-                f.write('{"fresh": true}')
-
     clients = []
 
-    def fake_client():
+    def make_client(username, broken):
+        class Client:
+            def __init__(self):
+                self.username = username
+
+            def load_settings(self, path):
+                assert path == str(session)
+
+            def login(self, u, p):
+                if broken and os.path.exists(str(session)):
+                    raise FakeError("connection reset on cached session")
+
+            def dump_settings(self, path):
+                with open(path, "w") as f:
+                    f.write('{"fresh": true}')
+
         c = Client()
         clients.append(c)
         return c
+
+    def fake_client():
+        if len(clients) == 0:
+            return make_client("stale_user", broken=True)
+        return make_client("fresh_user", broken=False)
 
     monkeypatch.setattr(ig, "_new_client", fake_client)
     result = ig.connect_instagram()
     assert result["status"] == "SUCCESS"
     assert result["login"] == "fresh"
     assert len(clients) == 2, "a second, fresh login should have been attempted"
+    # the recovered client, not the stale one, must be the active one afterwards
+    assert result["username"] == "fresh_user"
     backups = [f for f in os.listdir(tmp_path) if f.startswith("instagram_session.json.bak-")]
     assert backups, "the stale session should be backed up, not silently deleted"
+
+
+def test_recovered_client_used_for_upload(monkeypatch, tmp_path):
+    """After session recovery, the upload runs on the fresh client, never the stale one."""
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"0")
+    session = tmp_path / "instagram_session.json"
+    session.write_text('{"stale": true}')
+    monkeypatch.setenv("SHORTS_MOCK", "0")
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "pass")
+    monkeypatch.setattr(ig, "SESSION_FILE", str(session))
+
+    uploads = []
+
+    class Media:
+        code = "abc123"
+        pk = 42
+
+    def make_client(number):
+        class Client:
+            def __init__(self):
+                self.username = "user"
+
+            def load_settings(self, path):
+                pass
+
+            def login(self, u, p):
+                if number == 1:
+                    raise FakeError("connection reset on cached session")
+
+            def dump_settings(self, path):
+                pass
+
+            def clip_upload(self, path, **kwargs):
+                if number == 1:
+                    raise AssertionError("the stale client must never upload")
+                uploads.append(number)
+                return Media()
+
+        return Client()
+
+    # first call -> client 1 (fails login), second call inside recovery -> client 2
+    counter = {"n": 0}
+
+    def fake_client2():
+        counter["n"] += 1
+        return make_client(counter["n"])
+
+    monkeypatch.setattr(ig, "_new_client", fake_client2)
+    result = ig.upload_to_instagram(str(video), caption="c")
+    assert result["status"] == "SUCCESS"
+    assert uploads == [2], "the upload must land on the recovered fresh client"
+    assert result["instagram_url"].endswith("/reel/abc123/")
+
+
+def test_friendly_error_redacts_password(monkeypatch):
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "supersecretpw")
+    out = ig._friendly_error(Exception("login failed: password supersecretpw rejected"))
+    assert "supersecretpw" not in out
+    assert "[redacted]" in out
+    assert "Exception" in out, "the exception class name stays for diagnosis"
+
+
+def test_friendly_error_redacts_long_tokens(monkeypatch):
+    token = "A" * 60
+    out = ig._friendly_error(Exception(f"session cookie {token} expired"))
+    assert token not in out
+    assert "[redacted-token]" in out
+
+
+def test_connect_error_never_echoes_password(monkeypatch):
+    monkeypatch.setenv("SHORTS_MOCK", "0")
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "supersecretpw")
+    monkeypatch.setattr(ig, "SESSION_FILE", os.path.join("/tmp", "ig_tests_none.json"))
+
+    def failing_client():
+        cl = type("C", (), {})()
+        cl.login = lambda u, p: (_ for _ in ()).throw(Exception("bad login: password supersecretpw"))
+        return cl
+
+    monkeypatch.setattr(ig, "_new_client", failing_client)
+    result = ig.connect_instagram()
+    assert result["status"] == "FAILED"
+    assert "supersecretpw" not in result["error"]
 
 
 def test_unreadable_session_backed_up(monkeypatch, tmp_path):

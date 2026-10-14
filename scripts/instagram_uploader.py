@@ -18,6 +18,7 @@ Note: instagrapi is an unofficial client. Keep your daily count modest
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -68,12 +69,16 @@ def _backup_session_file(reason: str) -> None:
         logger.warning("Could not back up the cached Instagram session (%s)", exc)
 
 
-def _login_with_recovery(cl, username: str, password: str) -> str:
+def _login_with_recovery(cl, username: str, password: str):
     """Sign in, reusing the cached session when possible.
 
     Instagram rejects long-lived cached sessions now and then (403/challenge/connection
     errors). When the cached session fails, it is backed up (not deleted) and one fresh
-    login is attempted. Returns "cache" or "fresh" so callers can log how it went.
+    login is attempted on a NEW client.
+
+    Returns (active_client, mode) where mode is "cache" or "fresh". The returned client
+    is the only one callers should use afterwards: a stale client is never reused, so
+    cl.username / clip_upload always run on the session that actually logged in.
     """
     had_session = os.path.exists(SESSION_FILE)
     if had_session:
@@ -87,7 +92,7 @@ def _login_with_recovery(cl, username: str, password: str) -> str:
         cl.login(username, password)
         os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
         cl.dump_settings(SESSION_FILE)
-        return "cache" if had_session else "fresh"
+        return cl, ("cache" if had_session else "fresh")
     except Exception as exc:
         if not had_session:
             raise
@@ -97,7 +102,7 @@ def _login_with_recovery(cl, username: str, password: str) -> str:
         cl.login(username, password)
         os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
         cl.dump_settings(SESSION_FILE)
-        return "fresh"
+        return cl, "fresh"
 
 
 _CHALLENGE_HINTS = ("challenge", "checkpoint", "two_factor", "two-factor", "2fa", "verify")
@@ -129,12 +134,28 @@ _ADVICE = {
 }
 
 
+def _redact(text: str) -> str:
+    """Strip credential values and obvious session tokens out of an error message."""
+    password = (os.getenv("IG_PASSWORD") or "").strip()
+    username = (os.getenv("IG_USERNAME") or "").strip()
+    for secret in (password, username):
+        if len(secret) >= 3:
+            text = text.replace(secret, "[redacted]")
+    # long opaque runs (40+ chars of token-ish characters) are usually session
+    # tokens, cookies or signed payloads Instagram sometimes echoes in errors
+    text = re.sub(r"[A-Za-z0-9+/=_-]{40,}", "[redacted-token]", text)
+    return text
+
+
 def _friendly_error(exc: Exception) -> str:
     kind = _error_kind(exc)
     advice = _ADVICE.get(kind)
+    # never echo raw credentials or session material, but keep the exception
+    # class name so the failure stays diagnosable
+    detail = _redact(f"{type(exc).__name__}: {exc}")
     if advice:
-        return f"{advice} (Detail: {exc})"
-    return str(exc)
+        return f"{advice} (Detail: {detail})"
+    return detail
 
 
 def connect_instagram() -> dict:
@@ -150,7 +171,7 @@ def connect_instagram() -> dict:
         return {"status": "SUCCESS", "mode": "MOCK", "username": username}
     try:
         cl = _new_client()
-        reused = _login_with_recovery(cl, username, password)
+        cl, reused = _login_with_recovery(cl, username, password)
         username_ok = cl.username
         return {"status": "SUCCESS", "username": username_ok, "login": reused,
                 "session": SESSION_FILE, "mode": "PRODUCTION"}
@@ -206,7 +227,7 @@ def upload_to_instagram(
 
     try:
         cl = _new_client()
-        _login_with_recovery(cl, username, password)
+        cl, _login_mode = _login_with_recovery(cl, username, password)
         try:
             if thumb_path:
                 media = cl.clip_upload(file_path, caption=caption, thumbnail=thumb_path, share_to_feed=share_to_feed)
