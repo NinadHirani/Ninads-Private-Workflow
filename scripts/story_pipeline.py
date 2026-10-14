@@ -227,8 +227,13 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
                 fallback_audio = video_srcs[0]
             else:
                 fallback_audio = os.path.join(workdir, "silence.wav")
-                subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(int(final_duration)), fallback_audio],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(int(final_duration)), fallback_audio],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+                except Exception as exc:
+                    # Non-fatal: the render below fails on its own if the audio track
+                    # never materialises, and that failure is reported as a clean FAILED run.
+                    logger.warning("Could not generate silence track: %s", redact(str(exc)))
         cmd = ["bash", STORY_SCRIPT, edited_path, str(int(final_duration)), fallback_audio]
         if has_captions:
             cmd.append(ass_path)
@@ -236,7 +241,12 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         env = dict(os.environ)
         if logo and os.path.exists(logo):
             env["LOGO_FILE"] = os.path.abspath(logo)
-        proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
+        except Exception as exc:
+            # A hung FFmpeg fallback render (TimeoutExpired included) must end the
+            # run as FAILED, not crash produce_story() and kill the maker session.
+            return fail("edit", f"FFmpeg fallback render failed: {redact(str(exc))}")
         if proc.returncode != 0 or not os.path.exists(edited_path) or os.path.getsize(edited_path) == 0:
             return fail("edit", f"Both Remotion and FFmpeg render failed: {remotion_res.get('error')}")
         engine_used = "ffmpeg_fallback"

@@ -186,6 +186,25 @@ def topic_iterator(topics, niche_context: str = ""):
         yield next_topic
 
 
+def _safe_run(mode, topic, args, config, publish_at, upload_enabled):
+    """Runs one Short's pipeline, converting any unexpected exception into a
+    FAILED result so one bad run can never kill the continuous maker session."""
+    try:
+        if mode == "story":
+            from scripts.story_pipeline import run_story
+            return run_story(topic, duration=int(config.get("duration", 45)),
+                             privacy=args.privacy,
+                             logo=os.getenv("LOGO_FILE") or None,
+                             publish_at=publish_at,
+                             upload=upload_enabled)
+        return run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
+                   publish_at=publish_at, upload=upload_enabled)
+    except Exception as exc:
+        logger.error("Unexpected error while making '%s': %s", topic, redact(f"{type(exc).__name__}: {exc}"))
+        return {"status": "FAILED", "failed_step": "unexpected", "mode": "",
+                "error": f"{type(exc).__name__}: {exc}"}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Continuous Shorts maker (started by shortsctl start)")
     parser.add_argument("--context", required=True, help="Path to context.json")
@@ -234,16 +253,7 @@ def main():
             logger.info("Scheduled publish: private until %s (%d min gap), then public", publish_at, schedule_gap_min)
 
         mode = (config.get("mode") or "clip").strip().lower()
-        if mode == "story":
-            from scripts.story_pipeline import run_story
-            result = run_story(topic, duration=int(config.get("duration", 45)),
-                               privacy=args.privacy,
-                               logo=os.getenv("LOGO_FILE") or None,
-                               publish_at=publish_at,
-                               upload=upload_enabled)
-        else:
-            result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
-                         publish_at=publish_at, upload=upload_enabled)
+        result = _safe_run(mode, topic, args, config, publish_at, upload_enabled)
 
         is_success = result.get("status") in ("SUCCESS", "SUCCESS_LOCAL")
         deliverable = result.get("deliverable_file", "")
