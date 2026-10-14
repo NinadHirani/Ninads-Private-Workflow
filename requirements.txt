@@ -1,0 +1,15 @@
+# AI Shorts Factory - Python dependencies for a direct install (pip install -r requirements.txt)
+# docker/python/requirements.txt is kept in sync with this list.
+requests>=2.31.0
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+python-dotenv>=1.0.0
+instagrapi>=1.19.10
+edge-tts>=6.1.9
+# Free offline TTS fallback used when edge-tts is unreachable (scripts/voiceover.py)
+piper-tts>=1.2.0
+# Optional: better word timings for the Piper fallback captions; the code falls back gracefully without it
+# faster-whisper
+pytest>=7.4.0
+pytest-mock>=3.11.1

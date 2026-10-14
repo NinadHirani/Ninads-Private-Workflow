@@ -112,7 +112,7 @@ Set `SHORTS_SAMPLE_VIDEO=/path/to/clip.mp4` to test with your own clip instead o
 
 ### 3. Run the tests
 ```bash
-pip install -r docker/python/requirements.txt
+pip install -r requirements.txt
 python3 -m pytest tests/ -v
 ```
 FFmpeg must be installed for the video tests (they generate `tests/sample.mp4` on first run); without it those tests are skipped. In Docker: `docker compose run --rm python_worker`.
@@ -136,7 +136,7 @@ python3 scripts/shortsctl.py status    # is it running? how many made today
 python3 scripts/shortsctl.py stop      # finishes the current Short, then stops
 ```
 
-Edit `context.json` to tell it what kind of Shorts to make. YouTube uploads go up as **private** until you switch them to public.
+Edit `context.json` to tell it what kind of Shorts to make. One-off runs (`run_pipeline.py`) upload **private** by default. Continuous runs (`shortsctl start`) upload private and switch to **public** automatically after `schedule_public_gap_minutes` (5 minutes by default in context.json; set it to `0` to keep them private until you switch them yourself). The mobile control center's create action also publishes **public** by default unless a privacy is passed explicitly.
 
 Every Short also goes to Instagram as a Reel: put IG_USERNAME and IG_PASSWORD in `.env` (the same video is posted to both, and the session is cached after the first login). Instagram has no "private upload" through this route, so Reels are visible per your account's privacy: on a private account only your approved followers see them. Instagram posting uses an unofficial client, so keep `max_per_day` modest in context.json.
 
