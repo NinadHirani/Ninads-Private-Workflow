@@ -166,7 +166,8 @@ def publish_instagram_video(file_path: str, caption: str = None, title: str = ""
 
 
 def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bool = False,
-        logo: str = None, style: str = None, publish_at: str = None, on_progress = None) -> dict:
+        logo: str = None, style: str = None, publish_at: str = None, upload: bool = True,
+        on_progress = None) -> dict:
     started = time.time()
     style = (style or os.getenv("EDIT_STYLE") or "cinematic").strip().lower()
 
@@ -198,6 +199,21 @@ def run(topic: str, duration: int = 30, privacy: str = "private", keep_files: bo
             "privacy": privacy,
             "publish_at": publish_at,
         }, f, indent=2)
+
+    if not upload:
+        # Local-only mode (auto_run: upload=false or local_only=true): render and keep the
+        # deliverable, but never call either publisher. Mirrors run_story's local path.
+        elapsed = round(time.time() - started, 2)
+        steps["upload"] = {"status": "SKIPPED_LOCAL_ONLY"}
+        logger.info("Uploads disabled: local deliverable only (%s)", deliverable_video)
+        log_execution(topic, "SUCCESS_LOCAL", os.path.basename(deliverable_video), "", "",
+                      execution_time_sec=elapsed)
+        if not keep_files:
+            steps["cleanup"] = delete_processed_media(raw_path=raw_path, edited_path=edited_path)
+        return {"status": "SUCCESS", "mode": "LOCAL", "topic": topic, "style": style,
+                "youtube_url": "", "deliverable_file": deliverable_video,
+                "instagram": "SKIPPED_LOCAL_ONLY", "instagram_url": "",
+                "privacy": privacy, "total_time_sec": elapsed, "steps": steps}
 
     upload = publish_youtube_video(edited_path, title=meta["title"], description=meta["description"],
                                    tags=meta["tags"], privacy=privacy, publish_at=publish_at,
