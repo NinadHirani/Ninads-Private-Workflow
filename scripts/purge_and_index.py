@@ -100,6 +100,17 @@ def format_bytes(bytes_count: int) -> str:
     return f"{bytes_count:.2f} TB"
 
 
+def _deletable_media(name: str) -> bool:
+    """Same protections everywhere: dotfiles (incl. .gitkeep) and logo assets
+    survive, and only media/metadata files are purged."""
+    if name.startswith("."):
+        return False
+    if "logo" in name.lower():
+        return False
+    ext = os.path.splitext(name)[1].lower()
+    return ext in [".mp4", ".mov", ".json", ".wav", ".mp3", ".jpg", ".png"]
+
+
 def purge_media(dry_run: bool = False) -> dict:
     """Purges all media files in downloads/, edited/, archive/, and deliverables/."""
     target_dirs = [
@@ -116,35 +127,30 @@ def purge_media(dry_run: bool = False) -> dict:
         if not os.path.exists(d):
             continue
         for entry in os.scandir(d):
-            if entry.name.startswith("."):
-                continue  # preserve .gitkeep
-            if "logo" in entry.name.lower():
-                continue  # preserve channel logo assets
-            # Only delete media and metadata files
-            if entry.is_file():
-                ext = os.path.splitext(entry.name)[1].lower()
-                if ext in [".mp4", ".mov", ".json", ".wav", ".mp3", ".jpg", ".png"]:
-                    sz = entry.stat().st_size
-                    total_bytes += sz
-                    deleted_files += 1
-                    if not dry_run:
-                        try:
-                            os.remove(entry.path)
-                        except Exception as e:
-                            logger.warning(f"Could not remove {entry.path}: {e}")
+            if not entry.is_file() or not _deletable_media(entry.name):
+                continue
+            sz = entry.stat().st_size
+            total_bytes += sz
+            deleted_files += 1
+            if not dry_run:
+                try:
+                    os.remove(entry.path)
+                except Exception as e:
+                    logger.warning(f"Could not remove {entry.path}: {e}")
 
     # Also clean remotion/public/scenes if present
     scenes_dir = os.path.join(ROOT, "remotion", "public", "scenes")
     if os.path.exists(scenes_dir):
         for entry in os.scandir(scenes_dir):
-            if entry.is_file():
-                total_bytes += entry.stat().st_size
-                deleted_files += 1
-                if not dry_run:
-                    try:
-                        os.remove(entry.path)
-                    except Exception:
-                        pass
+            if not entry.is_file() or not _deletable_media(entry.name):
+                continue  # same protections: dotfiles, logos, non-media survive
+            total_bytes += entry.stat().st_size
+            deleted_files += 1
+            if not dry_run:
+                try:
+                    os.remove(entry.path)
+                except Exception:
+                    pass
 
     action_label = "Found for removal" if dry_run else "Successfully purged"
     logger.info(f"{action_label}: {deleted_files} files ({format_bytes(total_bytes)} reclaimed).")
