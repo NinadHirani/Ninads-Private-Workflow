@@ -32,6 +32,15 @@ from logger import mark_asset_used, mark_topic_used, log_execution
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("story_pipeline")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORY_SCRIPT = os.path.join(ROOT, "ffmpeg", "process_story.sh")
@@ -56,7 +65,7 @@ def _convert_image_scene_to_clip(image_path: str, out_path: str, duration_sec: f
     try:
         proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
     except Exception as exc:
-        logger.warning("Image scene conversion failed for %s: %s", image_path, exc)
+        logger.warning("Image scene conversion failed for %s: %s", image_path, redact(str(exc)))
         return None
     if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
         logger.warning("Image scene conversion produced no clip for %s", image_path)

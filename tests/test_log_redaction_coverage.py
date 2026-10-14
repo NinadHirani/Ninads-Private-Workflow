@@ -27,7 +27,7 @@ def _logger_statements(src: str):
             c = src[i]
             if c == "(":
                 depth += 1
-            elif c == ")":
+            elif c in ")]}":
                 depth -= 1
             i += 1
         yield m.start(), src[m.start():i]
@@ -39,7 +39,7 @@ def _top_level_args(stmt: str):
     for ch in inner:
         if ch in "([{":
             depth += 1
-        elif ch in ")]}" ":
+        elif ch in ")]}\":
             depth -= 1
         if ch == "," and depth == 0:
             parts.append("".join(cur).strip())
@@ -66,6 +66,17 @@ def test_every_logged_exception_is_redacted():
         "Raw exception text reaches a log line; route it through redact():\n"
         + "\n".join(offenders)
     )
+
+
+def test_no_logger_exception_calls():
+    """logger.exception prints the raw exception text and traceback verbatim, which
+    can carry a credential value; the sanitizer invariant requires explicit redact()."""
+    offenders = []
+    for path in sorted(SCRIPTS_DIR.glob("*.py")):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "logger.exception(" in line:
+                offenders.append("%s:%d: %s" % (path.name, n, line.strip()))
+    assert not offenders, "logger.exception leaks raw exception text; use redact(str(exc)):\n" + "\n".join(offenders)
 
 
 def test_voiceover_failure_logs_redacted(caplog, monkeypatch, tmp_path):
