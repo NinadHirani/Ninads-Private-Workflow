@@ -16,6 +16,7 @@ import socket
 import datetime
 import mimetypes
 import threading
+import hmac
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -33,6 +34,19 @@ DAEMON_LOG = os.path.join(LOG_DIR, "auto.log")
 STATE_FILE = os.path.join(LOG_DIR, "auto_state.json")
 CONTEXT_FILE = os.path.join(ROOT, "context.json")
 DELIVERABLES_DIR = os.path.join(ROOT, "deliverables")
+
+# Web UI access control. State-changing endpoints (/api/create, /api/maker/start,
+# /api/maker/stop, /api/config POST) are open to same-origin callers (the dashboard
+# itself, on localhost or over Wi-Fi) but require this token from everyone else
+# (cross-origin pages, LAN scripts, the public tunnel). Without it they fail closed.
+UI_TOKEN_ENV = "SHORTS_UI_TOKEN"
+
+
+def ui_token():
+    value = (os.getenv(UI_TOKEN_ENV) or "").strip()
+    if not value or value.startswith(("your_", "mock_")):
+        return None
+    return value
 
 CREATION_LOCK = threading.Lock()
 CREATION_STATE = {
@@ -106,7 +120,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._apply_cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
@@ -114,13 +128,75 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._apply_cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
 
     def do_HEAD(self):
         self.do_GET(head_only=True)
+
+    # --- access control -----------------------------------------------------
+    CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create")
+
+    def _host_bare(self) -> str:
+        host = (self.headers.get("Host") or "").strip().lower()
+        if not host:
+            return ""
+        if host.startswith("["):
+            end = host.find("]")
+            return host[1:end] if end != -1 else host
+        return host.rsplit(":", 1)[0]
+
+    def _local_host(self) -> bool:
+        return self._host_bare() in ("localhost", "127.0.0.1", "::1")
+
+    def _same_origin(self):
+        """True/False when an Origin header is present; None when it is absent."""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return None
+        try:
+            return urlparse(origin).netloc.lower() == (self.headers.get("Host") or "").strip().lower()
+        except ValueError:
+            return False
+
+    def _authorized(self) -> bool:
+        token = ui_token()
+        if not token:
+            return False
+        supplied = (self.headers.get("X-Shorts-Token") or "").strip()
+        auth = (self.headers.get("Authorization") or "").strip()
+        if auth.lower().startswith("bearer ") and not supplied:
+            supplied = auth[7:].strip()
+        return hmac.compare_digest(supplied, token)
+
+    def _control_allowed(self) -> bool:
+        """State-changing endpoints: same-origin is always fine; anything else
+        (a cross-origin page, a LAN script, the public tunnel) must send the
+        token from SHORTS_UI_TOKEN in .env. No token set means fail closed."""
+        same = self._same_origin()
+        if same:
+            return True
+        if same is False:
+            return self._authorized()
+        return self._local_host() or self._authorized()
+
+    def _cors_origin(self):
+        """Echo the request Origin only for same-origin or authorized callers;
+        cross-origin pages get no ACAO header, so browsers cannot read responses."""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return None
+        if self._same_origin() or self._authorized():
+            return origin
+        return None
+
+    def _apply_cors(self):
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
 
     def do_GET(self, head_only: bool = False):
         parsed = urlparse(self.path)
@@ -158,6 +234,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        # Gate after the body is drained: rejecting earlier would close the
+        # socket with unread request data, which sends a TCP reset that can
+        # clobber the 401 response on the wire.
+        if path in DashboardHandler.CONTROL_PATHS and not self._control_allowed():
+            self.send_json({
+                "status": "FAILED",
+                "error": ("Unauthorized. From outside this machine (tunnel, Wi-Fi device, or another "
+                          "website), set SHORTS_UI_TOKEN in .env and send it as the X-Shorts-Token "
+                          "header or 'Authorization: Bearer <token>'."),
+            }, 401)
+            return
         try:
             payload = json.loads(body) if body else {}
         except Exception:
@@ -365,7 +452,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(file_size))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._apply_cors()
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         if not head_only:
@@ -390,7 +477,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges", "bytes")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._apply_cors()
             self.end_headers()
             if not head_only:
                 try:
@@ -405,7 +492,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if not range_match:
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{file_size}")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._apply_cors()
             self.end_headers()
             return
 
@@ -414,7 +501,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if first_byte >= file_size or last_byte >= file_size:
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{file_size}")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._apply_cors()
             self.end_headers()
             return
 
@@ -424,7 +511,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Range", f"bytes {first_byte}-{last_byte}/{file_size}")
         self.send_header("Content-Length", str(length))
         self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._apply_cors()
         self.end_headers()
 
         try:
