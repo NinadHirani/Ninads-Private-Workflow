@@ -45,6 +45,12 @@ def _save_env(key: str, value: str) -> str:
     lines.append(f"{key}={value}")
     with open(env_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
+    try:
+        # .env holds real secrets (client secret, refresh token, IG password):
+        # keep it readable by the owner only, whatever the umask was.
+        os.chmod(env_path, 0o600)
+    except OSError as exc:
+        logger.warning("Could not restrict permissions on %s: %s", env_path, redact(str(exc)))
     return env_path
 
 
