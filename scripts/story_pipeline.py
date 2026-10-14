@@ -37,6 +37,56 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORY_SCRIPT = os.path.join(ROOT, "ffmpeg", "process_story.sh")
 
 
+def _convert_image_scene_to_clip(image_path: str, out_path: str, duration_sec: float, fps: int = 30):
+    """Converts a still AI image scene into a short video clip.
+
+    The FFmpeg fallback assembler (process_story.sh) consumes video clips only,
+    so still image scenes must be looped into real clips here. Without this the
+    fallback silently drops the AI-generated visuals and substitutes stock
+    sample footage."""
+    if not image_path or not os.path.exists(image_path):
+        return None
+    duration = max(float(duration_sec or 0.0), 1.0)
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-loop", "1", "-i", image_path, "-t", f"{duration:.2f}",
+        "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps={fps}",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", out_path,
+    ]
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    except Exception as exc:
+        logger.warning("Image scene conversion failed for %s: %s", image_path, exc)
+        return None
+    if proc.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        logger.warning("Image scene conversion produced no clip for %s", image_path)
+        return None
+    return out_path
+
+
+def _fallback_clip_paths(scenes: list, workdir: str, fps: int = 30):
+    """Builds the FFmpeg fallback clip list in scene order.
+
+    Video scenes pass through unchanged; image scenes are converted to clips so
+    AI-generated visuals survive a Remotion failure. tests/sample.mp4 is used
+    only when nothing else could be assembled."""
+    clips = []
+    for idx, sc in enumerate(scenes):
+        src = sc.get("src") or ""
+        if sc.get("type") == "video":
+            if src and os.path.exists(src):
+                clips.append(src)
+            continue
+        frames = sc.get("durationInFrames") or 0
+        out_path = os.path.join(workdir, f"fallback_scene_{idx}.mp4")
+        clip = _convert_image_scene_to_clip(src, out_path, frames / float(fps), fps=fps)
+        if clip:
+            clips.append(clip)
+    if not clips:
+        clips = [os.path.join(ROOT, "tests", "sample.mp4")]
+    return clips
+
+
 def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 4, on_progress = None) -> dict:
     started = time.time()
     steps = {}
@@ -153,19 +203,19 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         on_progress=notify,
     )
 
+    engine_used = "remotion"
     if remotion_res.get("status") != "SUCCESS" or not os.path.exists(edited_path):
         # Fallback to ffmpeg process_story.sh if Remotion encounters an unexpected issue
         logger.warning("Remotion render failed (%s), falling back to FFmpeg process_story.sh", remotion_res.get("error"))
         import captions
         ass_path = os.path.join(workdir, "captions.ass")
         has_captions = captions.build_ass(words, ass_path) or captions.fallback_ass(script["lines"], 60.0, ass_path)
-        raw_clip_paths = [s["src"] for s in scenes if s["type"] == "video"]
-        if not raw_clip_paths:
-            raw_clip_paths = [os.path.join(ROOT, "tests", "sample.mp4")]
+        raw_clip_paths = _fallback_clip_paths(scenes, workdir)
+        video_srcs = [s["src"] for s in scenes if s["type"] == "video"]
         fallback_audio = vo.get("file") or audio_cfg.get("ambient_src") or audio_cfg.get("music_src")
         if not fallback_audio or not os.path.exists(fallback_audio):
-            if audio_cfg.get("use_original_audio") and raw_clip_paths and os.path.exists(raw_clip_paths[0]):
-                fallback_audio = raw_clip_paths[0]
+            if audio_cfg.get("use_original_audio") and video_srcs and os.path.exists(video_srcs[0]):
+                fallback_audio = video_srcs[0]
             else:
                 fallback_audio = os.path.join(workdir, "silence.wav")
                 subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(int(final_duration)), fallback_audio],
@@ -180,8 +230,9 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=900)
         if proc.returncode != 0 or not os.path.exists(edited_path) or os.path.getsize(edited_path) == 0:
             return fail("edit", f"Both Remotion and FFmpeg render failed: {remotion_res.get('error')}")
+        engine_used = "ffmpeg_fallback"
 
-    steps["edit"] = {"file": edited_path, "size": os.path.getsize(edited_path), "engine": "remotion"}
+    steps["edit"] = {"file": edited_path, "size": os.path.getsize(edited_path), "engine": engine_used}
     notify("edit", "done")
 
     # 6. Validate Output Video
