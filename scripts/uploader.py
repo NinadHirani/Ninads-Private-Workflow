@@ -19,6 +19,15 @@ except ImportError:
     pass
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 logger = logging.getLogger("uploader")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,12 +139,12 @@ def upload_to_youtube(
                 except HttpError as e:
                     # If YouTube rejects publishAt (e.g. unverified for scheduled publishing), fallback to private
                     if publish_at and ("publishAt" in str(e) or "scheduled" in str(e).lower()):
-                        logger.warning("YouTube rejected scheduled publishAt (%s). Retrying as private without schedule.", e)
+                        logger.warning("YouTube rejected scheduled publishAt (%s). Retrying as private without schedule.", redact(str(e)))
                         return upload_to_youtube(file_path, title, description, privacy_status="private",
                                                  tags=tags, retries=retries, publish_at=None)
                     err_content = str(e).lower()
                     if (e.resp.status in (400, 403)) and any(k in err_content for k in ("quotaexceeded", "uploadlimitexceeded", "daily limit", "exceeded the number of videos")):
-                        logger.warning("YouTube daily upload quota or upload limit reached: %s", e)
+                        logger.warning("YouTube daily upload quota or upload limit reached: %s", redact(str(e)))
                         return {
                             "status": "QUOTA_EXCEEDED",
                             "error": "YouTube daily upload limit exceeded (channel limit or quota reached).",
@@ -150,7 +159,7 @@ def upload_to_youtube(
                     if failures >= retries:
                         raise
                     failures += 1
-                    logger.warning(f"Network error during upload ({e}), retrying ({failures}/{retries})")
+                    logger.warning("Network error during upload (%s), retrying (%d/%d)", redact(str(e)), failures, retries)
                     time.sleep(2 ** failures)
         finally:
             socket.setdefaulttimeout(old_timeout)
@@ -170,7 +179,7 @@ def upload_to_youtube(
             "mode": "PRODUCTION",
         }
     except Exception as e:
-        logger.error(f"YouTube upload failed: {e}")
+        logger.error("YouTube upload failed: %s", redact(str(e)))
         return {"status": "FAILED", "error": str(e)}
 
 

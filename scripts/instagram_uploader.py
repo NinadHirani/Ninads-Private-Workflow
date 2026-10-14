@@ -18,7 +18,6 @@ Note: instagrapi is an unofficial client. Keep your daily count modest
 """
 
 import os
-import re
 import sys
 import json
 import time
@@ -30,6 +29,15 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+try:
+    from scripts.log_sanitizer import redact as _redact
+except ImportError:
+    try:
+        from log_sanitizer import redact as _redact
+    except ImportError:
+        def _redact(text: str) -> str:
+            return text
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("instagram_uploader")
@@ -134,19 +142,6 @@ _ADVICE = {
 }
 
 
-def _redact(text: str) -> str:
-    """Strip credential values and obvious session tokens out of an error message."""
-    password = (os.getenv("IG_PASSWORD") or "").strip()
-    username = (os.getenv("IG_USERNAME") or "").strip()
-    for secret in (password, username):
-        if len(secret) >= 3:
-            text = text.replace(secret, "[redacted]")
-    # long opaque runs (40+ chars of token-ish characters) are usually session
-    # tokens, cookies or signed payloads Instagram sometimes echoes in errors
-    text = re.sub(r"[A-Za-z0-9+/=_-]{40,}", "[redacted-token]", text)
-    return text
-
-
 def _friendly_error(exc: Exception) -> str:
     kind = _error_kind(exc)
     advice = _ADVICE.get(kind)
@@ -176,7 +171,7 @@ def connect_instagram() -> dict:
         return {"status": "SUCCESS", "username": username_ok, "login": reused,
                 "session": SESSION_FILE, "mode": "PRODUCTION"}
     except Exception as e:
-        logger.error("Instagram connect failed: %s", e)
+        logger.error("Instagram connect failed: %s", _redact(str(e)))
         return {"status": "FAILED", "error": _friendly_error(e), "error_kind": _error_kind(e)}
 
 
@@ -248,7 +243,7 @@ def upload_to_instagram(
             "mode": "PRODUCTION",
         }
     except Exception as e:
-        logger.error("Instagram upload failed: %s", e)
+        logger.error("Instagram upload failed: %s", _redact(str(e)))
         return {"status": "FAILED", "error": _friendly_error(e), "error_kind": _error_kind(e)}
     finally:
         if created_thumb and thumb_path and os.path.exists(thumb_path):

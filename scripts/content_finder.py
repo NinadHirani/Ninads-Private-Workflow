@@ -19,6 +19,15 @@ except ImportError:
     pass
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format='%(asctime)s - %(levelname)s - %(message)s')
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 logger = logging.getLogger("content_finder")
 
 PEXELS_API_URL = "https://api.pexels.com/videos/search"
@@ -64,7 +73,7 @@ def search_pexels(topic: str, per_page: int = 15, page: int = 1) -> list:
     try:
         data = _get_json(f"{PEXELS_API_URL}?{query}", {"Authorization": api_key})
     except Exception as e:
-        logger.error(f"Pexels search failed: {e}")
+        logger.error("Pexels search failed: %s", redact(str(e)))
         return []
     return data.get("videos", [])
 
@@ -78,7 +87,7 @@ def search_pixabay(topic: str, per_page: int = 15, page: int = 1) -> list:
     try:
         data = _get_json(f"{PIXABAY_API_URL}?{query}")
     except Exception as e:
-        logger.error(f"Pixabay search failed: {e}")
+        logger.error("Pixabay search failed: %s", redact(str(e)))
         return []
     videos = []
     for hit in data.get("hits", []):
