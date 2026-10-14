@@ -5,6 +5,7 @@ import pytest
 from scripts.logger import mark_asset_used, is_asset_used, mark_topic_used, is_topic_used, get_used_asset_ids
 from scripts.content_finder import rank_and_select_video
 from scripts.archive import delete_processed_media
+from scripts import purge_and_index as pni
 from scripts.purge_and_index import purge_media
 
 
@@ -51,3 +52,53 @@ def test_delete_processed_media(tmp_path):
     assert res["status"] == "SUCCESS"
     assert not f1.exists()
     assert not f2.exists()
+
+
+def _plant(root, rel, name, content=b"x"):
+    d = root / rel
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / name
+    p.write_bytes(content)
+    return p
+
+
+def test_purge_media_dry_run_deletes_nothing(monkeypatch, tmp_path):
+    monkeypatch.setattr(pni, "ROOT", str(tmp_path))
+    keep = _plant(tmp_path, "downloads", "raw_1.mp4")
+    keep_json = _plant(tmp_path, "deliverables", "short_1.json")
+    res = purge_media(dry_run=True)
+    assert res["dry_run"] is True
+    assert res["deleted_count"] >= 2
+    assert keep.exists() and keep_json.exists()
+
+
+def test_purge_media_deletes_media_preserves_specials(monkeypatch, tmp_path):
+    monkeypatch.setattr(pni, "ROOT", str(tmp_path))
+    media = _plant(tmp_path, "edited", "short_1.mp4")
+    meta = _plant(tmp_path, "deliverables", "short_1.json")
+    gitkeep = _plant(tmp_path, "downloads", ".gitkeep")
+    hidden = _plant(tmp_path, "archive", ".DS_Store")
+    logo = _plant(tmp_path, "archive", "my_logo.png")
+    other = _plant(tmp_path, "archive", "notes.txt")
+
+    res = purge_media(dry_run=False)
+    assert res["dry_run"] is False
+    assert not media.exists() and not meta.exists()
+    assert gitkeep.exists()
+    assert hidden.exists()
+    assert logo.exists()
+    assert other.exists()
+
+
+def test_purge_scenes_dir_same_protections(monkeypatch, tmp_path):
+    """The remotion scenes cleanup once deleted EVERY file in the folder,
+    dotfiles and non-media included. It must follow the same rules as the
+    main purge loop."""
+    monkeypatch.setattr(pni, "ROOT", str(tmp_path))
+    scene = _plant(tmp_path, "remotion/public/scenes", "scene1.png")
+    gitkeep = _plant(tmp_path, "remotion/public/scenes", ".gitkeep")
+    cfg = _plant(tmp_path, "remotion/public/scenes", "webpack.config.js")
+
+    purge_media(dry_run=False)
+    assert not scene.exists()
+    assert gitkeep.exists() and cfg.exists()
