@@ -45,3 +45,36 @@ def test_sleep_completes_normally_without_stop(monkeypatch):
     stopped = auto_run._sleep_with_stop(3, lambda: False)
     assert stopped is False
     assert sleeps == [1.0] * 3
+
+
+def test_safe_run_survives_story_exception(monkeypatch):
+    """An unexpected exception from run_story must become a FAILED result, so
+    the continuous maker records the run and keeps going instead of dying."""
+    import argparse
+
+    import scripts.story_pipeline as story_pipeline
+
+    def boom(*a, **k):
+        raise RuntimeError("boom: unexpected failure")
+
+    monkeypatch.setattr(story_pipeline, "run_story", boom)
+    args = argparse.Namespace(privacy="private")
+    result = auto_run._safe_run("story", "topic-under-test", args, {"duration": 45},
+                                None, False)
+    assert result["status"] == "FAILED"
+    assert "RuntimeError" in result["error"] and "boom" in result["error"]
+
+
+def test_safe_run_survives_clip_exception(monkeypatch):
+    """Same containment for clip mode: run() raising must not kill the maker."""
+    import argparse
+
+    def boom(*a, **k):
+        raise ValueError("clip pipeline exploded")
+
+    monkeypatch.setattr(auto_run, "run", boom)
+    args = argparse.Namespace(privacy="private")
+    result = auto_run._safe_run("clip", "topic-under-test", args, {},
+                                None, False)
+    assert result["status"] == "FAILED"
+    assert "ValueError" in result["error"]
