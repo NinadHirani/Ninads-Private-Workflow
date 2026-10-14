@@ -6,6 +6,7 @@ Primary: Microsoft Edge neural voices through edge-tts (free, no key, internet).
 Fallback: Piper local neural voice (fully offline) aligned with faster-whisper,
 with a one-time free voice model download.
 """
+import math
 import os
 import re
 import sys
@@ -29,6 +30,7 @@ PIPER_DIR = os.getenv("PIPER_DIR", os.path.join(tempfile.gettempdir(), "piper-vo
 PIPER_VOICE_URL = ("https://huggingface.co/rhasspy/piper-voices/resolve/main/"
                    "en/en_US/lessac/medium/en_US-lessac-medium")
 FFMPEG = os.getenv("FFMPEG_BIN", "ffmpeg")
+MAX_RETRY_DELAY_SECONDS = 60.0  # hard cap on any single edge-tts retry wait
 
 
 def _bounded_int_env(name: str, default: int, low: int, high: int) -> int:
@@ -52,6 +54,9 @@ def _bounded_float_env(name: str, default: float, low: float, high: float) -> fl
         value = float(raw)
     except (TypeError, ValueError):
         logger.warning("Invalid %s=%r; using default %g", name, raw, default)
+        return default
+    if not math.isfinite(value):
+        logger.warning("Invalid %s=%r (non-finite); using default %g", name, raw, default)
         return default
     if value < low or value > high:
         logger.warning("%s=%g is outside %g..%g; clamping", name, value, low, high)
@@ -88,7 +93,7 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
                 return {"status": "SUCCESS", "voice": f"edge-tts:{voice_name}", "file": wav, "words": words, "text": text}
             except Exception as exc:
                 if attempt + 1 < attempts_per_voice:
-                    delay = base_backoff * (2 ** attempt)
+                    delay = min(base_backoff * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
                     logger.warning("edge-tts failed on attempt %d/%d (%s) with voice %s; retrying in %.0fs",
                                    attempt + 1, attempts_per_voice, exc, voice_name, delay)
                     time.sleep(delay)
@@ -131,11 +136,14 @@ def _piper_available() -> bool:
 
 def _macos_say(text: str, out_dir: str, wav: str) -> list:
     aiff = os.path.join(out_dir, "vo.aiff")
-    subprocess.run(["say", "-o", aiff, text], check=True, timeout=60)
-    subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", aiff,
-                    "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
-    _remove_quietly(aiff)
-    return []
+    try:
+        subprocess.run(["say", "-o", aiff, text], check=True, timeout=60)
+        subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", aiff,
+                        "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
+        return []
+    finally:
+        # the intermediate aiff is removed on success AND on failure
+        _remove_quietly(aiff)
 
 
 def _get_python():
@@ -147,20 +155,23 @@ def _get_python():
 def _edge(text: str, out_dir: str, wav: str, voice: str = None) -> list:
     mp3 = os.path.join(out_dir, "vo.mp3")
     vtt = os.path.join(out_dir, "vo.vtt")
-    py = _get_python()
-    target_voice = voice or VOICES_FALLBACK[0]
-    subprocess.run([py, "-m", "edge_tts", "--voice", target_voice, "--text", text,
-                    "--write-media", mp3, "--write-subtitles", vtt],
-                   check=True, capture_output=True, timeout=120)
-    words = _parse_vtt(vtt)
-    if not os.path.exists(mp3) or os.path.getsize(mp3) == 0:
-        raise RuntimeError("edge-tts produced no audio")
-    subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", mp3,
-                    "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
-    # intermediates (raw mp3 + vtt) are no longer needed once the wav exists
-    _remove_quietly(mp3)
-    _remove_quietly(vtt)
-    return words
+    try:
+        py = _get_python()
+        target_voice = voice or VOICES_FALLBACK[0]
+        subprocess.run([py, "-m", "edge_tts", "--voice", target_voice, "--text", text,
+                        "--write-media", mp3, "--write-subtitles", vtt],
+                       check=True, capture_output=True, timeout=120)
+        words = _parse_vtt(vtt)
+        if not os.path.exists(mp3) or os.path.getsize(mp3) == 0:
+            raise RuntimeError("edge-tts produced no audio")
+        subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", mp3,
+                        "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
+        return words
+    finally:
+        # intermediates (raw mp3 + vtt) are removed on success AND on failure,
+        # so a failed attempt never leaves partial vo.mp3/vo.vtt behind
+        _remove_quietly(mp3)
+        _remove_quietly(vtt)
 
 
 def _parse_vtt(path: str) -> list:
