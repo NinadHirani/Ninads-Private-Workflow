@@ -18,6 +18,15 @@ import tempfile
 import urllib.request
 
 logger = logging.getLogger("voiceover")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 
 VOICES_FALLBACK = [
     os.getenv("VOICEOVER_VOICE", "en-US-BrianNeural"),
@@ -95,11 +104,11 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
                 if attempt + 1 < attempts_per_voice:
                     delay = min(base_backoff * (2 ** attempt), MAX_RETRY_DELAY_SECONDS)
                     logger.warning("edge-tts failed on attempt %d/%d (%s) with voice %s; retrying in %.0fs",
-                                   attempt + 1, attempts_per_voice, exc, voice_name, delay)
+                                   attempt + 1, attempts_per_voice, redact(str(exc)), voice_name, delay)
                     time.sleep(delay)
                 else:
                     logger.warning("edge-tts failed on attempt %d/%d (%s) with voice %s; trying next voice",
-                                   attempt + 1, attempts_per_voice, exc, voice_name)
+                                   attempt + 1, attempts_per_voice, redact(str(exc)), voice_name)
                     time.sleep(1.0)
 
     # 2. Fallback: macOS say (if available on macOS)
@@ -109,7 +118,7 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
             logger.info("Voiceover made with macOS say fallback")
             return {"status": "SUCCESS", "voice": "macos-say", "file": wav, "words": words, "text": text}
         except Exception as exc:
-            logger.warning("macOS say failed (%s); trying Piper if installed", exc)
+            logger.warning("macOS say failed (%s); trying Piper if installed", redact(str(exc)))
 
     # 3. Fallback: Piper local neural voice (only if piper is actually installed)
     if _piper_available():
@@ -118,7 +127,7 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
             logger.info("Voiceover made with Piper (%d words)", len(words or []))
             return {"status": "SUCCESS", "voice": "piper", "file": wav, "words": words, "text": text}
         except Exception as exc:
-            logger.warning("Piper failed: %s", exc)
+            logger.warning("Piper failed: %s", redact(str(exc)))
 
     return {"status": "FAILED", "error": "all TTS methods failed (edge-tts, say, piper)"}
 

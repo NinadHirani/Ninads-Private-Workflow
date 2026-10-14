@@ -18,6 +18,15 @@ import urllib.parse
 import urllib.request
 
 logger = logging.getLogger("scene_generator")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -302,7 +311,7 @@ def download_pollinations_image(prompt: str, out_path: str) -> bool:
                     logger.info("Generated AI scene saved to %s (%d bytes)", out_path, len(data))
                     return True
         except Exception as e:
-            logger.warning("Pollinations image attempt failed (%s): %s", candidate_url.split("&model=")[-1] if "&model=" in candidate_url else "default", e)
+            logger.warning("Pollinations image attempt failed (%s): %s", candidate_url.split("&model=")[-1] if "&model=" in candidate_url else "default", redact(str(e)))
             time.sleep(1.0)
 
     return False
