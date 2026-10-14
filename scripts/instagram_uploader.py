@@ -64,6 +64,14 @@ def _new_client():
     return cl
 
 
+def _harden(path: str) -> None:
+    """Session files hold login cookies: keep them readable by the owner only."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError as exc:
+        logger.warning("Could not restrict permissions on %s: %s", path, _redact(str(exc)))
+
+
 def _backup_session_file(reason: str) -> None:
     """Move a stale/unreadable cached session aside (never deleted) so a fresh login can be written."""
     if not os.path.exists(SESSION_FILE):
@@ -72,6 +80,7 @@ def _backup_session_file(reason: str) -> None:
     backup = f"{SESSION_FILE}.bak-{reason}-{int(time.time())}"
     try:
         os.replace(SESSION_FILE, backup)
+        _harden(backup)
         logger.warning("Cached Instagram session set aside as %s (%s)", backup, reason)
     except OSError as exc:
         logger.warning("Could not back up the cached Instagram session (%s)", _redact(str(exc)))
@@ -100,6 +109,7 @@ def _login_with_recovery(cl, username: str, password: str):
         cl.login(username, password)
         os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
         cl.dump_settings(SESSION_FILE)
+        _harden(SESSION_FILE)
         return cl, ("cache" if had_session else "fresh")
     except Exception as exc:
         if not had_session:
@@ -110,6 +120,7 @@ def _login_with_recovery(cl, username: str, password: str):
         cl.login(username, password)
         os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
         cl.dump_settings(SESSION_FILE)
+        _harden(SESSION_FILE)
         return cl, "fresh"
 
 
