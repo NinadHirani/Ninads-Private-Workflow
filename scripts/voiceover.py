@@ -213,7 +213,8 @@ def _parse_vtt(path: str) -> list:
 
 def _piper(text: str, wav: str) -> list:
     model = PIPER_MODEL or _ensure_piper_model()
-    subprocess.run([sys.executable, "-m", "piper", "-m", model, "-f", wav],
+    # Same interpreter _piper_available() validated: the repo .venv when present.
+    subprocess.run([_get_python(), "-m", "piper", "-m", model, "-f", wav],
                    input=text.encode(), check=True, capture_output=True, timeout=300)
     if not os.path.exists(wav) or os.path.getsize(wav) == 0:
         raise RuntimeError("Piper produced no audio")

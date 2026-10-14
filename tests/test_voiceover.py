@@ -200,3 +200,27 @@ def test_failed_macos_say_cleans_up_partial_aiff(monkeypatch, tmp_path):
     with pytest.raises(Exception):
         voiceover._macos_say("hello", str(tmp_path), str(tmp_path / "voiceover.wav"))
     assert not aiff.exists()
+
+
+def test_piper_uses_the_same_interpreter_as_the_availability_check(monkeypatch):
+    """_piper_available() validates the repo venv python, so _piper() must run
+    piper with that same interpreter, not bare sys.executable."""
+    import scripts.voiceover as vo
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        with open(cmd[-1], "wb") as f:
+            f.write(b"RIFF")
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(vo, "_get_python", lambda: "/venv/bin/python")
+    monkeypatch.setattr(vo, "_align", lambda wav, text: [])
+    monkeypatch.setattr(vo.subprocess, "run", fake_run)
+    monkeypatch.setattr(vo, "_ensure_piper_model", lambda: "/models/en_US-lessac-medium.onnx")
+
+    vo._piper("hello world", "/tmp/out.wav")
+    assert calls and calls[0][0] == "/venv/bin/python"
