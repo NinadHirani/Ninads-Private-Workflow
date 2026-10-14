@@ -60,3 +60,53 @@ def test_retry_attempts_env(monkeypatch):
     result = voiceover.make_voiceover(["hello"], "/tmp/vo_test_env")
     assert result["status"] == "FAILED"
     assert calls == ["v1", "v1", "v1"]
+
+
+def test_invalid_env_values_do_not_break_fallback(monkeypatch):
+    """Garbage EDGE_TTS_* values must fall back to defaults, not crash before the chain starts."""
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "not-a-number")
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "-100")
+    sleeps = []
+    calls = []
+
+    def fake_edge(text, out_dir, wav, voice=None):
+        calls.append(voice)
+        return [{"word": "hi", "start": 0.0, "end": 0.2}]
+
+    monkeypatch.setattr(voiceover, "_edge", fake_edge)
+    monkeypatch.setattr(voiceover.time, "sleep", lambda s: sleeps.append(s))
+    result = voiceover.make_voiceover(["hello"], "/tmp/vo_test_bad_env")
+    assert result["status"] == "SUCCESS"
+    assert len(calls) == 1, "defaults (2 attempts) mean the second attempt never runs after success"
+
+
+def test_extreme_and_negative_env_values_are_clamped(monkeypatch):
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "999")
+    assert voiceover._bounded_int_env("EDGE_TTS_ATTEMPTS", 2, 1, 10) == 10
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "0")
+    assert voiceover._bounded_int_env("EDGE_TTS_ATTEMPTS", 2, 1, 10) == 1
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "-3")
+    assert voiceover._bounded_int_env("EDGE_TTS_ATTEMPTS", 2, 1, 10) == 1
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "abc")
+    assert voiceover._bounded_float_env("EDGE_TTS_BACKOFF_SECONDS", 2.0, 0.0, 60.0) == 2.0
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "1e9")
+    assert voiceover._bounded_float_env("EDGE_TTS_BACKOFF_SECONDS", 2.0, 0.0, 60.0) == 60.0
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "-5")
+    assert voiceover._bounded_float_env("EDGE_TTS_BACKOFF_SECONDS", 2.0, 0.0, 60.0) == 0.0
+
+
+def test_edge_intermediates_are_cleaned_up(monkeypatch, tmp_path):
+    """vo.mp3 and vo.vtt are removed once the final wav exists; a cleanup failure never raises."""
+    mp3 = tmp_path / "vo.mp3"
+    vtt = tmp_path / "vo.vtt"
+    wav = tmp_path / "voiceover.wav"
+    mp3.write_bytes(b"mp3-bytes")
+    vtt.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n")
+
+    class Ok:
+        returncode = 0
+
+    monkeypatch.setattr(voiceover.subprocess, "run", lambda *a, **k: Ok())
+    words = voiceover._edge("hello", str(tmp_path), str(wav))
+    assert words, "word timings still parsed from the vtt before cleanup"
+    assert not mp3.exists() and not vtt.exists()

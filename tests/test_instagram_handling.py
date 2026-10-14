@@ -247,3 +247,22 @@ def test_unreadable_session_backed_up(monkeypatch, tmp_path):
     result = ig.connect_instagram()
     assert result["status"] == "SUCCESS"
     assert session.read_text() == '{"fresh": true}'
+
+
+def test_connect_failure_never_logs_password(monkeypatch, caplog):
+    """Raw exception text must not reach the log; only redacted detail may."""
+    import logging
+    monkeypatch.setenv("SHORTS_MOCK", "0")
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "supersecretpw")
+    monkeypatch.setattr(ig, "SESSION_FILE", os.path.join("/tmp", "ig_tests_none.json"))
+
+    def failing_client():
+        cl = type("C", (), {})()
+        cl.login = lambda u, p: (_ for _ in ()).throw(Exception("bad login: password supersecretpw"))
+        return cl
+
+    monkeypatch.setattr(ig, "_new_client", failing_client)
+    with caplog.at_level(logging.ERROR, logger="instagram_uploader"):
+        ig.connect_instagram()
+    assert "supersecretpw" not in caplog.text
