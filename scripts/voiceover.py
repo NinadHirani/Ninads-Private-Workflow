@@ -31,6 +31,43 @@ PIPER_VOICE_URL = ("https://huggingface.co/rhasspy/piper-voices/resolve/main/"
 FFMPEG = os.getenv("FFMPEG_BIN", "ffmpeg")
 
 
+def _bounded_int_env(name: str, default: int, low: int, high: int) -> int:
+    """Read an int env var safely: invalid values fall back to the default, others are clamped."""
+    raw = (os.getenv(name) or "").strip()
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s=%r; using default %d", name, raw, default)
+        return default
+    if value < low or value > high:
+        logger.warning("%s=%d is outside %d..%d; clamping", name, value, low, high)
+        return min(high, max(low, value))
+    return value
+
+
+def _bounded_float_env(name: str, default: float, low: float, high: float) -> float:
+    """Read a float env var safely: invalid values fall back to the default, others are clamped."""
+    raw = (os.getenv(name) or "").strip()
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s=%r; using default %g", name, raw, default)
+        return default
+    if value < low or value > high:
+        logger.warning("%s=%g is outside %g..%g; clamping", name, value, low, high)
+        return min(high, max(low, value))
+    return value
+
+
+def _remove_quietly(path: str) -> None:
+    """Delete an intermediate file if it exists; a cleanup failure never breaks the pipeline."""
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        logger.debug("Could not remove intermediate file %s", path)
+
+
 def make_voiceover(lines: list, out_dir: str) -> dict:
     text = " ".join(str(l).strip() for l in lines if str(l).strip())
     if not text:
@@ -41,8 +78,8 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
     # 1. Primary: edge-tts with retry & voice rotation.
     # A single 403 is often transient, so each voice gets EDGE_TTS_ATTEMPTS tries
     # with exponential backoff before rotating to the next voice.
-    attempts_per_voice = max(1, int(os.getenv("EDGE_TTS_ATTEMPTS", "2")))
-    base_backoff = max(0.0, float(os.getenv("EDGE_TTS_BACKOFF_SECONDS", "2")))
+    attempts_per_voice = _bounded_int_env("EDGE_TTS_ATTEMPTS", 2, 1, 10)
+    base_backoff = _bounded_float_env("EDGE_TTS_BACKOFF_SECONDS", 2.0, 0.0, 60.0)
     for voice_name in VOICES_FALLBACK:
         for attempt in range(attempts_per_voice):
             try:
@@ -97,6 +134,7 @@ def _macos_say(text: str, out_dir: str, wav: str) -> list:
     subprocess.run(["say", "-o", aiff, text], check=True, timeout=60)
     subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", aiff,
                     "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
+    _remove_quietly(aiff)
     return []
 
 
@@ -119,6 +157,9 @@ def _edge(text: str, out_dir: str, wav: str, voice: str = None) -> list:
         raise RuntimeError("edge-tts produced no audio")
     subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y", "-i", mp3,
                     "-ar", "44100", "-ac", "2", wav], check=True, capture_output=True)
+    # intermediates (raw mp3 + vtt) are no longer needed once the wav exists
+    _remove_quietly(mp3)
+    _remove_quietly(vtt)
     return words
 
 
