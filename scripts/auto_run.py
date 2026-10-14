@@ -226,7 +226,7 @@ def main():
                                upload=upload_enabled)
         else:
             result = run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
-                         publish_at=publish_at)
+                         publish_at=publish_at, upload=upload_enabled)
 
         is_success = result.get("status") in ("SUCCESS", "SUCCESS_LOCAL")
         deliverable = result.get("deliverable_file", "")
@@ -234,6 +234,7 @@ def main():
             "at": datetime.datetime.now().isoformat(),
             "topic": topic,
             "status": "SUCCESS" if is_success else "FAILED",
+            "mode": result.get("mode", ""),
             "youtube_url": result.get("youtube_url", ""),
             "deliverable": deliverable,
             "publish_at": publish_at,
