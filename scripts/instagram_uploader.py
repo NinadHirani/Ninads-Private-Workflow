@@ -20,6 +20,7 @@ Note: instagrapi is an unofficial client. Keep your daily count modest
 import os
 import sys
 import json
+import time
 import uuid
 import argparse
 import logging
@@ -54,15 +55,86 @@ def _new_client():
     return cl
 
 
-def _login(cl, username: str, password: str) -> None:
-    if os.path.exists(SESSION_FILE):
+def _backup_session_file(reason: str) -> None:
+    """Move a stale/unreadable cached session aside (never deleted) so a fresh login can be written."""
+    if not os.path.exists(SESSION_FILE):
+        return
+    os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+    backup = f"{SESSION_FILE}.bak-{reason}-{int(time.time())}"
+    try:
+        os.replace(SESSION_FILE, backup)
+        logger.warning("Cached Instagram session set aside as %s (%s)", backup, reason)
+    except OSError as exc:
+        logger.warning("Could not back up the cached Instagram session (%s)", exc)
+
+
+def _login_with_recovery(cl, username: str, password: str) -> str:
+    """Sign in, reusing the cached session when possible.
+
+    Instagram rejects long-lived cached sessions now and then (403/challenge/connection
+    errors). When the cached session fails, it is backed up (not deleted) and one fresh
+    login is attempted. Returns "cache" or "fresh" so callers can log how it went.
+    """
+    had_session = os.path.exists(SESSION_FILE)
+    if had_session:
         try:
             cl.load_settings(SESSION_FILE)
-        except (OSError, ValueError):
-            pass
-    cl.login(username, password)
-    os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
-    cl.dump_settings(SESSION_FILE)
+        except Exception as exc:
+            logger.warning("Cached Instagram session unreadable (%s); starting fresh", exc)
+            _backup_session_file("unreadable")
+            had_session = False
+    try:
+        cl.login(username, password)
+        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+        cl.dump_settings(SESSION_FILE)
+        return "cache" if had_session else "fresh"
+    except Exception as exc:
+        if not had_session:
+            raise
+        logger.warning("Login with the cached session failed (%s); retrying fresh", exc)
+        _backup_session_file("stale")
+        cl = _new_client()
+        cl.login(username, password)
+        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+        cl.dump_settings(SESSION_FILE)
+        return "fresh"
+
+
+_CHALLENGE_HINTS = ("challenge", "checkpoint", "two_factor", "two-factor", "2fa", "verify")
+
+
+def _error_kind(exc: Exception) -> str:
+    """Classify an Instagram failure so the result can say what to do about it."""
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    if "twofactor" in name or "two_factor" in name or "two-factor" in text or "2fa" in text:
+        return "two_factor"
+    if "challenge" in name or any(h in text for h in _CHALLENGE_HINTS):
+        return "challenge"
+    if "rate" in name or "rate limit" in text or "429" in text or "too many" in text:
+        return "rate_limited"
+    if "login" in name or "logged_in" in name or "bad password" in text or "incorrect" in text:
+        return "credentials"
+    return "other"
+
+
+_ADVICE = {
+    "two_factor": ("Instagram asked for a two-factor code. Finish the login in the Instagram app "
+                   "(or use the code from your authenticator/SMS), then run connect again."),
+    "challenge": ("Instagram wants to verify this login. Open the Instagram app on the account's "
+                  "phone, approve the login challenge, then run connect again."),
+    "rate_limited": ("Instagram rate-limited this attempt. Wait a while before trying again and keep "
+                     "the daily post count modest."),
+    "credentials": ("Instagram rejected the login. Check IG_USERNAME and IG_PASSWORD in .env."),
+}
+
+
+def _friendly_error(exc: Exception) -> str:
+    kind = _error_kind(exc)
+    advice = _ADVICE.get(kind)
+    if advice:
+        return f"{advice} (Detail: {exc})"
+    return str(exc)
 
 
 def connect_instagram() -> dict:
@@ -78,13 +150,13 @@ def connect_instagram() -> dict:
         return {"status": "SUCCESS", "mode": "MOCK", "username": username}
     try:
         cl = _new_client()
-        _login(cl, username, password)
+        reused = _login_with_recovery(cl, username, password)
         username_ok = cl.username
-        return {"status": "SUCCESS", "username": username_ok,
+        return {"status": "SUCCESS", "username": username_ok, "login": reused,
                 "session": SESSION_FILE, "mode": "PRODUCTION"}
     except Exception as e:
-        logger.error(f"Instagram connect failed: {e}")
-        return {"status": "FAILED", "error": str(e)}
+        logger.error("Instagram connect failed: %s", e)
+        return {"status": "FAILED", "error": _friendly_error(e), "error_kind": _error_kind(e)}
 
 
 def upload_to_instagram(
@@ -134,7 +206,7 @@ def upload_to_instagram(
 
     try:
         cl = _new_client()
-        _login(cl, username, password)
+        _login_with_recovery(cl, username, password)
         try:
             if thumb_path:
                 media = cl.clip_upload(file_path, caption=caption, thumbnail=thumb_path, share_to_feed=share_to_feed)
@@ -155,8 +227,8 @@ def upload_to_instagram(
             "mode": "PRODUCTION",
         }
     except Exception as e:
-        logger.error(f"Instagram upload failed: {e}")
-        return {"status": "FAILED", "error": str(e)}
+        logger.error("Instagram upload failed: %s", e)
+        return {"status": "FAILED", "error": _friendly_error(e), "error_kind": _error_kind(e)}
     finally:
         if created_thumb and thumb_path and os.path.exists(thumb_path):
             try:
