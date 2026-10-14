@@ -12,6 +12,15 @@ import logging
 import subprocess
 
 logger = logging.getLogger("sound_manager")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MUSIC_DIR = os.path.join(ROOT, "music")
@@ -42,14 +51,14 @@ def _generate_synthetic_track(name: str, filter_str: str, duration: int = 35) ->
             logger.info("Generated soundscape track: %s", out_path)
             return out_path
     except Exception as e:
-        logger.warning("Could not generate synthetic sound %s: %s", name, e)
+        logger.warning("Could not generate synthetic sound %s: %s", name, redact(str(e)))
     return out_path if os.path.exists(out_path) else None
 
 
 def get_nature_soundscape(topic: str, duration: int = 30) -> str:
     """Returns a realistic natural ambient soundscape (rain, ocean, forest, river)."""
     t = (topic or "").lower()
-    
+
     if any(k in t for k in ["rain", "storm", "thunder", "droplet"]):
         track = "nature_rain"
         filt = f"anoisesrc=d={duration}:c=pink:r=44100:a=0.12,lowpass=f=1200,highpass=f=200,volume=1.8"
@@ -118,7 +127,7 @@ def check_video_audio_track(file_path: str) -> dict:
         has_audible = max_vol > -45.0
         return {"has_audio": True, "has_audible_sound": has_audible, "max_volume_db": max_vol}
     except Exception as e:
-        logger.warning("Could not inspect audio track of %s: %s", file_path, e)
+        logger.warning("Could not inspect audio track of %s: %s", file_path, redact(str(e)))
         return {"has_audio": False, "has_audible_sound": False, "max_volume_db": -99.0}
 
 
