@@ -171,6 +171,16 @@ Every Short then carries your logo (bottom right by default). Tune it with `LOGO
 
 ---
 
+## Web UI security
+
+The dashboard serves state-changing controls (one-click create, maker start/stop, config save), and it is open on your network with an optional fixed tunnel address. Those endpoints are protected:
+
+- Opening the dashboard itself (from localhost, or a phone on your Wi-Fi) needs no setup: same-origin calls are allowed.
+- Anything calling from outside that page (another website, a script on the LAN, or through the public tunnel) must send the token from `SHORTS_UI_TOKEN` in .env as an `X-Shorts-Token` header (or `Authorization: Bearer <token>`). With no token set, outside callers are rejected.
+- If your Vercel mobile app calls the API directly, set `SHORTS_UI_TOKEN` in .env once and add the same header in the app.
+
+Read-only views (status, logs, deliverables) stay open, but cross-origin websites get no CORS header, so a browser on another site cannot read responses.
+
 ## Running steps by hand
 
 ```bash
