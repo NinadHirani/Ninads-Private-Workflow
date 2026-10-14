@@ -16,14 +16,32 @@ from scripts.run_pipeline import run
 
 
 @pytest.fixture(autouse=True)
-def _fresh_auto_state():
-    """Isolate each auto_run test from session leftovers (STOP file, state)."""
-    for path in (auto_run.STOP_FILE, auto_run.STATE_FILE):
-        if os.path.exists(path):
-            os.remove(path)
+def _fresh_auto_state(monkeypatch, tmp_path):
+    """Point auto_run state at a sandbox; never touch the repo's real logs.
+
+    The original version of this fixture deleted auto_run.STOP_FILE and
+    auto_run.STATE_FILE at their real repo paths before every test, so a test
+    run on a machine with the maker daemon live could erase a pending STOP
+    signal and the run history. The module paths are now redirected to
+    tmp_path before anything runs, and the real files are only read to assert
+    this test file left them exactly as it found them.
+    """
+    real_stop, real_state = auto_run.STOP_FILE, auto_run.STATE_FILE
+    existed = (os.path.exists(real_stop), os.path.exists(real_state))
+
+    sandbox = tmp_path / "logs"
+    sandbox.mkdir()
+    monkeypatch.setattr(auto_run, "LOG_DIR", str(sandbox))
+    monkeypatch.setattr(auto_run, "STOP_FILE", str(sandbox / "STOP"))
+    monkeypatch.setattr(auto_run, "STATE_FILE", str(sandbox / "auto_state.json"))
+
     yield
-    if os.path.exists(auto_run.STOP_FILE):
-        os.remove(auto_run.STOP_FILE)
+
+    now = (os.path.exists(real_stop), os.path.exists(real_state))
+    assert now == existed, (
+        "test run touched real auto_run files: "
+        f"STOP={real_stop} STATE={real_state} existed={existed} now={now}"
+    )
 
 
 def _install_recorders(monkeypatch):
