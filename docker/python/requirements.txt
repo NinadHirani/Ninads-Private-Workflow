@@ -7,3 +7,5 @@ pytest>=7.4.0
 pytest-mock>=3.11.1
 instagrapi>=1.19.10
 edge-tts>=6.1.9
+# Free offline TTS fallback (scripts/voiceover.py)
+piper-tts>=1.2.0
