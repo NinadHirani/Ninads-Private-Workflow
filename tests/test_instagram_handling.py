@@ -266,3 +266,74 @@ def test_connect_failure_never_logs_password(monkeypatch, caplog):
     with caplog.at_level(logging.ERROR, logger="instagram_uploader"):
         ig.connect_instagram()
     assert "supersecretpw" not in caplog.text
+
+def test_unreadable_session_warning_never_logs_password(monkeypatch, tmp_path, caplog):
+    """The unreadable-session warning must carry redacted detail only."""
+    import logging
+    session = tmp_path / "instagram_session.json"
+    session.write_text("garbage")
+    monkeypatch.setenv("SHORTS_MOCK", "0")
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "supersecretpw")
+    monkeypatch.setattr(ig, "SESSION_FILE", str(session))
+
+    class Client:
+        username = "user"
+
+        def load_settings(self, path):
+            raise ValueError("corrupt session for user, password supersecretpw inside")
+
+        def login(self, u, p):
+            return True
+
+        def dump_settings(self, path):
+            with open(path, "w") as f:
+                f.write('{"fresh": true}')
+
+    monkeypatch.setattr(ig, "_new_client", lambda: Client())
+    with caplog.at_level(logging.WARNING, logger="instagram_uploader"):
+        result = ig.connect_instagram()
+    assert result["status"] == "SUCCESS"
+    assert "supersecretpw" not in caplog.text
+    assert "[redacted]" in caplog.text
+
+
+def test_cached_login_failure_warning_never_logs_password(monkeypatch, tmp_path, caplog):
+    """The stale-cache-retry warning must carry redacted detail only."""
+    import logging
+    session = tmp_path / "instagram_session.json"
+    session.write_text('{"cached": true}')
+    monkeypatch.setenv("SHORTS_MOCK", "0")
+    monkeypatch.setenv("IG_USERNAME", "user")
+    monkeypatch.setenv("IG_PASSWORD", "supersecretpw")
+    monkeypatch.setattr(ig, "SESSION_FILE", str(session))
+
+    made = []
+
+    class Client:
+        username = "user"
+
+        def load_settings(self, path):
+            pass
+
+        def login(self, u, p):
+            if len(made) == 1:
+                # the first (cached-session) client fails; the fresh retry succeeds
+                raise Exception("bad login: password supersecretpw")
+            return True
+
+        def dump_settings(self, path):
+            with open(path, "w") as f:
+                f.write('{"fresh": true}')
+
+    def make_client():
+        cl = Client()
+        made.append(cl)
+        return cl
+
+    monkeypatch.setattr(ig, "_new_client", make_client)
+    with caplog.at_level(logging.WARNING, logger="instagram_uploader"):
+        result = ig.connect_instagram()
+    assert result["status"] == "SUCCESS"
+    assert "supersecretpw" not in caplog.text
+    assert "[redacted]" in caplog.text
