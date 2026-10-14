@@ -1,5 +1,6 @@
 """Voiceover fallback reliability: edge-tts retries must not break the fallback chain."""
 import os
+import subprocess
 import sys
 import pytest
 
@@ -110,3 +111,92 @@ def test_edge_intermediates_are_cleaned_up(monkeypatch, tmp_path):
     words = voiceover._edge("hello", str(tmp_path), str(wav))
     assert words, "word timings still parsed from the vtt before cleanup"
     assert not mp3.exists() and not vtt.exists()
+
+
+def test_non_finite_float_env_falls_back_to_default(monkeypatch):
+    """NaN/Inf EDGE_TTS_BACKOFF_SECONDS must fall back to the default, not pass through."""
+    for raw in ("nan", "NaN", "inf", "-inf", "infinity"):
+        monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", raw)
+        assert voiceover._bounded_float_env("EDGE_TTS_BACKOFF_SECONDS", 2.0, 0.0, 60.0) == 2.0
+
+
+def test_nan_backoff_never_reaches_sleep(monkeypatch):
+    """EDGE_TTS_BACKOFF_SECONDS=nan must never hand a NaN (or inf) delay to time.sleep."""
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "2")
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "nan")
+    sleeps = []
+    monkeypatch.setattr(voiceover.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(voiceover, "_edge", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    monkeypatch.setattr(voiceover, "_piper_available", lambda: False)
+    monkeypatch.setattr(voiceover, "VOICES_FALLBACK", ["v1"])
+    result = voiceover.make_voiceover(["hello"], "/tmp/vo_test_nan")
+    assert result["status"] == "FAILED"
+    assert sleeps, "the retry path should still sleep between attempts"
+    assert all(s == s and abs(s) != float("inf") for s in sleeps), "no non-finite delay may reach sleep"
+
+
+def test_retry_delay_is_capped(monkeypatch):
+    """Exponential backoff can never exceed MAX_RETRY_DELAY_SECONDS per wait."""
+    monkeypatch.setenv("EDGE_TTS_ATTEMPTS", "10")
+    monkeypatch.setenv("EDGE_TTS_BACKOFF_SECONDS", "60")
+    sleeps = []
+    monkeypatch.setattr(voiceover.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(voiceover, "_edge", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    monkeypatch.setattr(voiceover, "_piper_available", lambda: False)
+    monkeypatch.setattr(voiceover, "VOICES_FALLBACK", ["v1"])
+    result = voiceover.make_voiceover(["hello"], "/tmp/vo_test_cap")
+    assert result["status"] == "FAILED"
+    assert len(sleeps) >= 9, "attempts 1..9 each wait before the next try"
+    assert all(s <= voiceover.MAX_RETRY_DELAY_SECONDS for s in sleeps)
+    assert max(sleeps) == voiceover.MAX_RETRY_DELAY_SECONDS, "the uncapped 60*2^8 wait is clamped to the cap"
+
+
+def test_failed_edge_tts_cleans_up_partial_intermediates(monkeypatch, tmp_path):
+    """A failing edge-tts subprocess must not leave partial vo.mp3/vo.vtt behind."""
+    mp3 = tmp_path / "vo.mp3"
+    vtt = tmp_path / "vo.vtt"
+    mp3.write_bytes(b"partial-mp3")
+    vtt.write_text("WEBVTT\n")
+
+    def boom(*a, **k):
+        raise subprocess.CalledProcessError(1, ["edge_tts"])
+
+    monkeypatch.setattr(voiceover.subprocess, "run", boom)
+    with pytest.raises(Exception):
+        voiceover._edge("hello", str(tmp_path), str(tmp_path / "voiceover.wav"))
+    assert not mp3.exists() and not vtt.exists()
+
+
+def test_failed_ffmpeg_conversion_cleans_up_intermediates(monkeypatch, tmp_path):
+    """vo.mp3/vo.vtt are removed even when the FFmpeg wav conversion itself fails."""
+    mp3 = tmp_path / "vo.mp3"
+    vtt = tmp_path / "vo.vtt"
+    mp3.write_bytes(b"mp3-bytes")
+    vtt.write_text("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nhello\n")
+
+    class Ok:
+        returncode = 0
+
+    def fake_run(cmd, **k):
+        if str(cmd[0]).endswith("ffmpeg") or "ffmpeg" in str(cmd[0]):
+            raise subprocess.CalledProcessError(1, cmd)
+        return Ok()
+
+    monkeypatch.setattr(voiceover.subprocess, "run", fake_run)
+    with pytest.raises(Exception):
+        voiceover._edge("hello", str(tmp_path), str(tmp_path / "voiceover.wav"))
+    assert not mp3.exists() and not vtt.exists()
+
+
+def test_failed_macos_say_cleans_up_partial_aiff(monkeypatch, tmp_path):
+    """A failed say/FFmpeg conversion must not leave a partial vo.aiff behind."""
+    aiff = tmp_path / "vo.aiff"
+    aiff.write_bytes(b"partial-aiff")
+
+    def boom(*a, **k):
+        raise subprocess.CalledProcessError(1, ["say"])
+
+    monkeypatch.setattr(voiceover.subprocess, "run", boom)
+    with pytest.raises(Exception):
+        voiceover._macos_say("hello", str(tmp_path), str(tmp_path / "voiceover.wav"))
+    assert not aiff.exists()
