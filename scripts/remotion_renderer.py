@@ -17,6 +17,15 @@ import logging
 import subprocess
 
 logger = logging.getLogger("remotion_renderer")
+try:
+    from scripts.log_sanitizer import redact
+except ImportError:
+    try:
+        from log_sanitizer import redact
+    except ImportError:
+        def redact(text: str) -> str:
+            return text
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTION_DIR = os.path.join(ROOT, "remotion")
@@ -137,7 +146,7 @@ def render_with_remotion(
                     shutil.copy2(src_path, staged_path)
                     relative_src = f"assets/{run_id}/{staged_name}"
                 except Exception as e:
-                    logger.warning("Could not stage video clip %s: %s", src_path, e)
+                    logger.warning("Could not stage video clip %s: %s", src_path, redact(str(e)))
                     relative_src = src_path
                 processed_scenes.append({
                     "type": "video",
@@ -253,7 +262,7 @@ def render_with_remotion(
     except subprocess.TimeoutExpired:
         return {"status": "FAILED", "error": "Remotion render timed out"}
     except Exception as exc:
-        logger.exception("Error during Remotion render")
+        logger.error("Error during Remotion render: %s", redact(str(exc)))
         return {"status": "FAILED", "error": str(exc)}
     finally:
         try:
