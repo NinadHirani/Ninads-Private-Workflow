@@ -27,7 +27,7 @@ def _logger_statements(src: str):
             c = src[i]
             if c == "(":
                 depth += 1
-            elif c in ")]}":
+            elif c == ")":
                 depth -= 1
             i += 1
         yield m.start(), src[m.start():i]
@@ -39,7 +39,7 @@ def _top_level_args(stmt: str):
     for ch in inner:
         if ch in "([{":
             depth += 1
-        elif ch in ")]}\":
+        elif ch in ")]}":
             depth -= 1
         if ch == "," and depth == 0:
             parts.append("".join(cur).strip())
