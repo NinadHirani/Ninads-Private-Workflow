@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import shutil
+import time
 import logging
 import subprocess
 import tempfile
@@ -37,16 +38,27 @@ def make_voiceover(lines: list, out_dir: str) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     wav = os.path.join(out_dir, "voiceover.wav")
 
-    # 1. Primary: edge-tts with retry & voice rotation
-    for attempt, voice_name in enumerate(VOICES_FALLBACK):
-        try:
-            words = _edge(text, out_dir, wav, voice=voice_name)
-            logger.info("Voiceover made with edge-tts (%s, %d words)", voice_name, len(words or []))
-            return {"status": "SUCCESS", "voice": f"edge-tts:{voice_name}", "file": wav, "words": words, "text": text}
-        except Exception as exc:
-            logger.warning("edge-tts failed on attempt %d (%s) with voice %s; trying next",
-                           attempt + 1, exc, voice_name)
-            time.sleep(1.0)
+    # 1. Primary: edge-tts with retry & voice rotation.
+    # A single 403 is often transient, so each voice gets EDGE_TTS_ATTEMPTS tries
+    # with exponential backoff before rotating to the next voice.
+    attempts_per_voice = max(1, int(os.getenv("EDGE_TTS_ATTEMPTS", "2")))
+    base_backoff = max(0.0, float(os.getenv("EDGE_TTS_BACKOFF_SECONDS", "2")))
+    for voice_name in VOICES_FALLBACK:
+        for attempt in range(attempts_per_voice):
+            try:
+                words = _edge(text, out_dir, wav, voice=voice_name)
+                logger.info("Voiceover made with edge-tts (%s, %d words)", voice_name, len(words or []))
+                return {"status": "SUCCESS", "voice": f"edge-tts:{voice_name}", "file": wav, "words": words, "text": text}
+            except Exception as exc:
+                if attempt + 1 < attempts_per_voice:
+                    delay = base_backoff * (2 ** attempt)
+                    logger.warning("edge-tts failed on attempt %d/%d (%s) with voice %s; retrying in %.0fs",
+                                   attempt + 1, attempts_per_voice, exc, voice_name, delay)
+                    time.sleep(delay)
+                else:
+                    logger.warning("edge-tts failed on attempt %d/%d (%s) with voice %s; trying next voice",
+                                   attempt + 1, attempts_per_voice, exc, voice_name)
+                    time.sleep(1.0)
 
     # 2. Fallback: macOS say (if available on macOS)
     if shutil.which("say"):
