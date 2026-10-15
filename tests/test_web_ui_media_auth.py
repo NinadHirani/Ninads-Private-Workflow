@@ -149,13 +149,13 @@ def test_frontend_never_stores_or_embeds_the_token():
     # A token NAME in help text is fine; only the VALUE is the secret.
 
 def test_served_page_never_contains_the_live_token_value(auth_server, monkeypatch):
-    secret = "live-secret-9c41f7e2a8b6d503"
-    monkeypatch.setenv("SHORTS_UI_TOKEN", secret)
+    sample_token = "sample-token-value-for-page-scan"
+    monkeypatch.setenv("SHORTS_UI_TOKEN", sample_token)
     host, port = auth_server
     status, body, _ = _request(port, "GET", "/")
     html = body.decode("utf-8")
     assert status == 200
-    assert secret not in html
+    assert sample_token not in html
 
 
 def test_frontend_logs_in_once_and_authenticates_calls():
