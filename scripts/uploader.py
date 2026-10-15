@@ -212,9 +212,12 @@ def _read_queue_or_recover() -> list:
         try:
             os.replace(QUEUE_FILE, backup)
             logger.warning("Queue file was corrupt: preserved it as %s and started a fresh queue.", os.path.basename(backup))
-        except OSError:
-            logger.warning("Queue file was corrupt and could not be backed up; starting a fresh queue.")
-        return []
+            return []
+        except OSError as exc:
+            raise RuntimeError(
+                "dual_queue.json is corrupt and its backup could not be created (%s); "
+                "refusing to overwrite the original file." % redact(str(exc))
+            )
 
 
 def _write_queue_atomic(items: list) -> None:
@@ -236,6 +239,33 @@ def _write_queue_atomic(items: list) -> None:
         raise
 
 
+def _acquire_queue_lock():
+    """Take the cross-process exclusive queue lock.
+
+    On POSIX a failed lock is fatal: enqueue refuses to proceed unlocked,
+    because continuing would reopen the lost-update race the lock exists to
+    prevent. Non-POSIX platforms (fcntl unavailable) fall back to the
+    in-process mutex only, as documented."""
+    if fcntl is None:
+        return None
+    try:
+        fd = open(QUEUE_FILE + ".lock", "w")
+    except OSError as exc:
+        raise RuntimeError(
+            "Could not open the queue lock file; refusing to enqueue without "
+            "the cross-process lock: %s" % redact(str(exc))
+        )
+    try:
+        fcntl.flock(fd.fileno(), fcntl.LOCK_EX)
+    except OSError as exc:
+        fd.close()
+        raise RuntimeError(
+            "Could not lock the queue file; refusing to enqueue without "
+            "the cross-process lock: %s" % redact(str(exc))
+        )
+    return fd
+
+
 def enqueue_dual_upload(video_path: str, meta_path: str, reason: str = "") -> dict:
     """Enqueues a deliverable for simultaneous upload to both YouTube & Instagram once quota frees.
 
@@ -245,15 +275,7 @@ def enqueue_dual_upload(video_path: str, meta_path: str, reason: str = "") -> di
     write itself is atomic."""
     os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
     with _QUEUE_MUTEX:
-        lock_fd = None
-        if fcntl is not None:
-            try:
-                lock_fd = open(QUEUE_FILE + ".lock", "w")
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-            except OSError:
-                if lock_fd is not None:
-                    lock_fd.close()
-                lock_fd = None
+        lock_fd = _acquire_queue_lock()
         try:
             items = _read_queue_or_recover()
             # Prevent duplicate queue entries for the same video
