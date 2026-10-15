@@ -115,7 +115,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # Keep stdout clean; suppress spammy GET polling
         pass
 
-    def send_json(self, data: dict, status: int = 200):
+    def send_json(self, data: dict, status: int = 200, head_only: bool = False):
         body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -124,7 +124,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
-        self.wfile.write(body)
+        if not head_only:
+            self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -198,34 +199,66 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
 
+    # Read endpoints that expose private state (config, logs, the deliverable
+    # list and the media files themselves) get the same protection as the
+    # state-changing ones: same-origin callers (the dashboard page itself) are
+    # fine, everyone else needs the SHORTS_UI_TOKEN. A same-origin browser
+    # fetch() or <video> request sends no Origin header, so it announces
+    # itself with the Sec-Fetch-Site header instead; direct navigation (no
+    # Origin, no Sec-Fetch-Site) and old browsers fall back to the
+    # local-host check or the token. Static assets stay public so the page
+    # itself always loads. The token never appears in responses or in the
+    # served page: it travels in request headers only.
+    def _read_allowed(self) -> bool:
+        same = self._same_origin()
+        if same:
+            return True
+        if same is False:
+            return self._authorized()
+        site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if site == "same-origin":
+            return True
+        return self._local_host() or self._authorized()
+
     def do_GET(self, head_only: bool = False):
         parsed = urlparse(self.path)
         path = parsed.path
 
         if path == "/" or path == "/index.html":
             self.serve_file(os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8", head_only=head_only)
-        elif path.startswith("/deliverables/"):
-            filename = os.path.basename(path)
-            file_path = os.path.join(DELIVERABLES_DIR, filename)
-            self.serve_media_with_range(file_path, head_only=head_only)
         elif path in ("/manifest.json", "/sw.js", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"):
             rel_path = path.lstrip("/")
             mime = "application/manifest+json" if path.endswith(".json") else (
                 "application/javascript" if path.endswith(".js") else "image/png"
             )
             self.serve_file(os.path.join(WEB_DIR, rel_path), mime, head_only=head_only)
-        elif path == "/api/status":
-            self.handle_api_status()
-        elif path == "/api/logs":
-            self.handle_api_logs(parsed)
-        elif path == "/api/deliverables":
-            self.handle_api_deliverables()
-        elif path == "/api/config":
-            self.handle_api_get_config()
-        elif path == "/api/classify":
-            self.handle_api_classify(parsed)
-        elif path == "/api/create/status":
-            self.handle_api_create_status()
+        elif path.startswith("/api/") or path.startswith("/deliverables/"):
+            if not self._read_allowed():
+                self.send_json({
+                    "status": "FAILED",
+                    "error": ("Unauthorized. Reading status, logs, config, or media from outside this "
+                              "machine (tunnel, Wi-Fi device, or another website) requires SHORTS_UI_TOKEN "
+                              "in .env sent as the X-Shorts-Token header or 'Authorization: Bearer <token>'."),
+                }, 401, head_only=head_only)
+                return
+            if path.startswith("/deliverables/"):
+                filename = os.path.basename(path)
+                file_path = os.path.join(DELIVERABLES_DIR, filename)
+                self.serve_media_with_range(file_path, head_only=head_only)
+            elif path == "/api/status":
+                self.handle_api_status()
+            elif path == "/api/logs":
+                self.handle_api_logs(parsed)
+            elif path == "/api/deliverables":
+                self.handle_api_deliverables()
+            elif path == "/api/config":
+                self.handle_api_get_config()
+            elif path == "/api/classify":
+                self.handle_api_classify(parsed)
+            elif path == "/api/create/status":
+                self.handle_api_create_status()
+            else:
+                self.send_error(404, "Not Found")
         else:
             self.send_error(404, "Not Found")
 
@@ -283,7 +316,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def handle_api_logs(self, parsed):
         qs = parse_qs(parsed.query)
-        num_lines = int(qs.get("lines", ["60"])[0])
+        try:
+            num_lines = int(qs.get("lines", ["60"])[0])
+        except (TypeError, ValueError):
+            num_lines = 60
+        num_lines = max(1, min(num_lines, 500))
         lines = []
         if os.path.exists(DAEMON_LOG):
             try:
