@@ -99,6 +99,38 @@ def _session_valid(value: str) -> bool:
                 return False
     return False
 
+# Failed-login rate limit for POST /api/session. Every remote caller arrives
+# through one local tunnel process, so a per-IP limit would be meaningless;
+# the limit is global and rolling. A correct token is never held back, so the
+# owner can always log in; only wrong tokens consume and trip the limit.
+SESSION_FAIL_WINDOW_SECONDS = 15 * 60
+SESSION_FAIL_LIMIT = 10
+_FAILED_LOGINS = []  # epoch seconds of recent wrong-token attempts
+_FAILED_LOGINS_LOCK = threading.Lock()
+
+
+def _prune_failed_logins(now: float) -> None:
+    while _FAILED_LOGINS and _FAILED_LOGINS[0] <= now - SESSION_FAIL_WINDOW_SECONDS:
+        _FAILED_LOGINS.pop(0)
+
+
+def _record_failed_login() -> float:
+    """Record a wrong-token login attempt; returns the seconds until wrong
+    attempts are accepted again (0 while still under the limit)."""
+    now = time.time()
+    with _FAILED_LOGINS_LOCK:
+        _prune_failed_logins(now)
+        _FAILED_LOGINS.append(now)
+        if len(_FAILED_LOGINS) > SESSION_FAIL_LIMIT:
+            return max(1.0, SESSION_FAIL_WINDOW_SECONDS - (now - _FAILED_LOGINS[0]))
+        return 0.0
+
+
+def _clear_failed_logins() -> None:
+    with _FAILED_LOGINS_LOCK:
+        _FAILED_LOGINS.clear()
+
+
 CREATION_LOCK = threading.Lock()
 CREATION_STATE = {
     "active": False,
@@ -353,6 +385,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path.startswith("/deliverables/"):
                 filename = os.path.basename(path)
                 file_path = os.path.join(DELIVERABLES_DIR, filename)
+                if not os.path.isfile(file_path):
+                    # basename already blocks directory traversal; this turns
+                    # paths like /deliverables/.. into a clean 404 instead of
+                    # a server error on a directory read.
+                    self.send_error(404, "Media not found")
+                    return
                 self.serve_media_with_range(file_path, head_only=head_only)
             elif path == "/api/status":
                 self.handle_api_status()
@@ -422,15 +460,44 @@ class DashboardHandler(BaseHTTPRequestHandler):
         supplied = str(payload.get("token") or "").strip()
         token = ui_token()
         if not token or not supplied or not hmac.compare_digest(supplied, token):
+            limited = _record_failed_login()
+            if limited > 0:
+                retry_after = int(limited + 1)
+                self.send_json(
+                    {"status": "FAILED",
+                     "error": "Too many failed logins. Try again in %d seconds." % retry_after},
+                    429, extra_headers={"Retry-After": str(retry_after)})
+                return
             self.send_json({"status": "FAILED", "error": "Invalid access token."}, 401)
             return
+        _clear_failed_logins()
         value = _issue_session()
         cookie = (f"{SESSION_COOKIE}={value}; Path=/; Max-Age={SESSION_TTL_SECONDS}; "
                   "HttpOnly; SameSite=Strict")
-        if (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https":
+        https = (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https"
+        if https or not self._is_private_host():
             cookie += "; Secure"
         self.send_json({"status": "ok", "detail": "session established"}, 200,
                        extra_headers={"Set-Cookie": cookie})
+
+    def _is_private_host(self) -> bool:
+        """True when the Host names the machine or the LAN, where plain-HTTP
+        dashboard use is normal. Any other Host (the public tunnel, a public
+        domain) gets a Secure session cookie, so the browser never sends the
+        cookie over an accidental plain-HTTP downgrade of that address."""
+        host = self._host_bare()
+        if not host:
+            return True
+        if host in self.LOOPBACK_HOSTS or host.endswith(".local"):
+            return True
+        labels = host.split(".")
+        if len(labels) == 4 and all(part.isdigit() for part in labels):
+            first, second = int(labels[0]), int(labels[1])
+            if (first == 10 or (first == 192 and second == 168)
+                    or (first == 172 and 16 <= second <= 31)
+                    or (first == 169 and second == 254)):
+                return True
+        return False
 
     def handle_api_queue(self):
         """Read-only view of the dual-upload queue (diagnostics only; there is
