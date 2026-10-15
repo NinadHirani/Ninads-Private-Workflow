@@ -980,6 +980,11 @@
         <button onclick="recheckConnection()" style="padding:6px 14px; background:rgba(255,255,255,0.06); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:12px; cursor:pointer;">🔄 Retry Connection</button>
         <button onclick="useDefaultTunnel()" style="padding:6px 14px; background:rgba(99,102,241,0.15); color:#c7d2fe; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-size:12px; cursor:pointer;">⚡️ Use Default Tunnel</button>
       </div>
+      <div style="display:flex; gap:6px; max-width:360px; margin:10px auto 0;">
+        <input type="password" id="apiTokenInput" placeholder="Access token" autocomplete="off" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:#e2e8f0; font-size:13px; outline:none;">
+        <button onclick="saveAccessToken()" style="padding:10px 14px; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Unlock</button>
+      </div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:8px;">Paste the factory's access token once. It stays in this page only, never in browser storage, and is exchanged for a secure session cookie.</div>
     </div>
     <div class="studio-card">
       <div class="studio-header">
@@ -1184,6 +1189,7 @@
         <div style="display: flex; gap: 8px; margin-top: 8px;">
           <button type="button" class="btn-save" style="flex:1; padding:8px 12px; font-size:13px; background:#4f46e5;" onclick="saveApiBase()">Connect Host</button>
           <button type="button" class="btn-save" style="background:rgba(255,255,255,0.08); padding:8px 12px; font-size:13px;" onclick="resetApiBase()">Reset Local</button>
+          <button type="button" class="btn-save" style="background:rgba(239,68,68,0.12); padding:8px 12px; font-size:13px; color:#f87171;" onclick="logoutSession()">Log Out</button>
         </div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
           When opening on Vercel via cellular/mobile, run <code>python scripts/shortsctl.py tunnel</code> on your Mac and paste the HTTPS URL here.
@@ -1212,11 +1218,84 @@
       return apiBase.replace(/\/+$/, '') + path;
     }
 
-    function apiFetch(path, options = {}) {
-      options.headers = Object.assign({
-        'Bypass-Tunnel-Reminder': 'true'
-      }, options.headers || {});
-      return fetch(apiUrl(path), options);
+    // Access token: entered once and kept ONLY in this page's memory (never
+    // written to browser storage), then exchanged for a secure session cookie.
+    // Closing the tab forgets it. It is never embedded in the app files.
+    let pageToken = '';
+    function savedToken() { return pageToken; }
+
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function apiHeaders() {
+      const h = { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' };
+      const tok = savedToken();
+      if (tok) h['X-Shorts-Token'] = tok;
+      return h;
+    }
+
+    async function establishSession() {
+      const tok = savedToken();
+      if (!tok) return false;
+      try {
+        const r = await fetch(apiUrl('/api/session'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+          body: JSON.stringify({ token: tok })
+        });
+        return r.ok;
+      } catch (e) { return false; }
+    }
+
+    async function apiFetch(path, options = {}) {
+      const headers = Object.assign(apiHeaders(), options.headers || {});
+      const r = await fetch(apiUrl(path), Object.assign({}, options, { headers, credentials: 'include' }));
+      if (r.status === 401) {
+        const banner = document.getElementById('setupBanner');
+        if (banner) { banner.style.display = 'block'; }
+        throw new Error('locked');
+      }
+      return r;
+    }
+
+    async function saveAccessToken() {
+      const el = document.getElementById('apiTokenInput');
+      if (!el) return;
+      const val = el.value.trim();
+      pageToken = val;
+      el.value = '';
+      const ok = await establishSession();
+      if (ok) {
+        alert(val ? 'Access token saved for this visit. It is not stored.' : 'Access token cleared.');
+        checkConnectionHealth();
+        fetchStatus();
+        fetchDeliverables();
+      } else {
+        alert('That token was rejected. Check the access token set in the factory .env and try again.');
+      }
+    }
+
+    async function logoutSession() {
+      try { await apiFetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+      pageToken = '';
+      alert('Logged out. Enter the token again to reconnect.');
+      checkConnectionHealth();
+    }
+
+    async function loadVideoInto(videoEl, path) {
+      const url = apiUrl(path);
+      if (url.startsWith(location.origin)) { videoEl.src = url; return; }
+      // Cross-origin (Vercel app): a plain <video> tag cannot send the token
+      // header or the session cookie, so fetch with credentials and play the blob.
+      try {
+        const r = await fetch(url, { headers: apiHeaders(), credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        videoEl.src = URL.createObjectURL(await r.blob());
+      } catch (e) {
+        videoEl.src = url;
+      }
     }
 
     function saveApiBase() {
@@ -1512,7 +1591,7 @@
       const player = document.getElementById('resultVideoPlayer');
       const filename = (res.deliverable_file || '').split('/').pop();
       if (filename) {
-        player.src = apiUrl('/deliverables/' + filename);
+        loadVideoInto(player, '/deliverables/' + filename);
       }
 
       const metaEl = document.getElementById('resultMetaInfo');
@@ -1603,7 +1682,7 @@
           return `
           <div class="video-card">
             <div class="video-preview-wrapper">
-              <video src="${mediaUrl}" controls playsinline preload="metadata"></video>
+              <video ${it.url.startsWith('http') ? `src="${mediaUrl}"` : `data-name="${encodeURIComponent(it.url)}"`} controls playsinline preload="metadata"></video>
             </div>
             <div class="video-meta-row">
               <div class="video-topic">${it.topic}</div>
@@ -1616,6 +1695,7 @@
           </div>
         `;
         }).join('');
+        list.querySelectorAll('video[data-name]').forEach(v => loadVideoInto(v, v.dataset.name));
       } catch (e) {
         const list = document.getElementById('galleryList');
         if (list) {
@@ -1690,7 +1770,8 @@
       fetchDeliverables();
     }
 
-    function recheckConnection() {
+    async function recheckConnection() {
+      if (savedToken()) { await establishSession(); }
       checkConnectionHealth().then(ok => {
         if (ok) {
           fetchStatus();
@@ -1716,6 +1797,7 @@
     if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = apiBase || '';
     if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = apiBase || '';
     updateGenreClassification();
+    if (savedToken()) establishSession();
     checkConnectionHealth();
     fetchStatus();
     fetchDeliverables();

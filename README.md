@@ -173,13 +173,24 @@ Every Short then carries your logo (bottom right by default). Tune it with `LOGO
 
 ## Web UI security
 
-The dashboard serves state-changing controls (one-click create, maker start/stop, config save), and it is open on your network with an optional fixed tunnel address. Those endpoints are protected:
+The dashboard serves state-changing controls (one-click create, maker start/stop, config save) and read-only views (status, logs, config, the upload queue, deliverables, and the media files themselves), and it is open on your network with an optional fixed tunnel address. Every request needs a real proof of access. Browser headers like Origin and Sec-Fetch-Site are never treated as proof, because any script can forge them:
 
-- Opening the dashboard itself (from localhost, or a phone on your Wi-Fi) needs no setup: same-origin calls are allowed.
-- Anything calling from outside that page (another website, a script on the LAN, or through the public tunnel) must send the token from `SHORTS_UI_TOKEN` in .env as an `X-Shorts-Token` header (or `Authorization: Bearer <token>`). With no token set, outside callers are rejected.
-- If your Vercel mobile app calls the API directly, set `SHORTS_UI_TOKEN` in .env once and add the same header in the app.
+- On the machine itself, opening http://localhost:8088 needs no setup: connections from the loopback address with a loopback Host are trusted.
+- Everywhere else there are two ways in:
+  - Dashboard login (the normal path): open the dashboard and enter the token from `SHORTS_UI_TOKEN` (.env) once in the connect banner (the browser does not store it). The server checks it and returns an HttpOnly, SameSite=Strict session cookie (Secure when the page is served over HTTPS, valid 30 days, renewed on use). The cookie authenticates the page's fetch calls and `<video>` playback, and the token never enters the page's JavaScript or storage.
+  - Token header (scripts, curl, the Vercel app): send `SHORTS_UI_TOKEN` as the `X-Shorts-Token` header (or `Authorization: Bearer <token>`) on every API call and media request.
+- The one-time login is `POST /api/session` with `{"token": "..."}`. It responds with the session cookie and never echoes the token. `DELETE /api/session` logs that device out. Sessions live in the server process, so restarting the web UI logs devices out.
+- A webpage from another site gets rejected even against localhost when its Origin gives it away (browsers sign cross-site requests with a mismatched Origin); raw clients are covered by the token rule, because a forged Origin proves nothing.
+- Static assets (the dashboard page, manifest, icons, service worker) stay public, so the page itself always loads.
+- The token travels only in request headers or the one-time login body. It is never embedded in the served page, in links, or in any API response.
+- CORS preflight (OPTIONS) is answered openly so authorized calls from the Vercel app can proceed, but a preflight carries no data; the actual GET/POST still validates the token.
+- The Vercel app is a different origin, so cookies do not apply: the token you enter in the connect banner stays in the page's memory for that visit (never written to browser storage) and is sent as the `X-Shorts-Token` header on every call, and it plays media by fetching it with the token and playing the blob, since a plain `<video>` tag cannot send headers. Same-origin pages (localhost or the tunnel URL) stream media directly.
 
-Read-only views (status, logs, deliverables) stay open, but cross-origin websites get no CORS header, so a browser on another site cannot read responses.
+### Known limitation: the dual-upload queue has no automatic drain
+
+When YouTube's daily quota is exhausted mid-run, the finished deliverable is recorded in `logs/dual_queue.json` (`enqueue_dual_upload` / `get_dual_queue` in scripts/uploader.py) and the run reports SUCCESS (LOCAL_QUEUE) instead of posting to Instagram. Nothing currently consumes that queue: items stay queued until they are uploaded manually. `/api/queue` (same access rules as every other endpoint) and the file itself are read-only views; automatic retry was deliberately not built.
+
+---
 
 ## Running steps by hand
 
