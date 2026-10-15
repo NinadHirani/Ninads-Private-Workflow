@@ -2,612 +2,227 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Shorts Factory | Mobile Studio & Control Center</title>
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Shorts Factory">
-  <meta name="theme-color" content="#090b10">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Shorts Factory</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     :root {
-      --bg: #090b10;
-      --card-bg: rgba(18, 24, 38, 0.75);
+      --bg: #0a0a0f;
+      --card-bg: rgba(255, 255, 255, 0.03);
       --card-border: rgba(255, 255, 255, 0.08);
-      --accent-green: #10b981;
-      --accent-green-glow: rgba(16, 185, 129, 0.25);
-      --accent-red: #ef4444;
-      --accent-red-glow: rgba(239, 68, 68, 0.25);
-      --accent-blue: #3b82f6;
-      --accent-purple: #8b5cf6;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
+      --text: #e8e8ed;
+      --text-dim: #85858f;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
       --radius-lg: 20px;
-      --radius-md: 14px;
+      --radius-md: 12px;
       --radius-sm: 8px;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 20px);
-      display: flex;
-      flex-direction: column;
       overflow-x: hidden;
-      background-image: 
-        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 85% 90%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
     }
 
+    .bg-glow {
+      position: fixed;
+      top: -200px;
+      right: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-glow2 {
+      position: fixed;
+      bottom: -200px;
+      left: -200px;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(168,85,247,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 16px 60px;
+    }
+
+    /* Header */
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 0 16px;
+      padding: 16px 0 24px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .brand-icon {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, #ef4444, #f59e0b);
-      border-radius: 10px;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+      font-size: 22px;
+      box-shadow: 0 8px 24px rgba(99,102,241,0.4);
     }
 
-    .brand-name {
-      font-size: 19px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #ffffff, #d1d5db);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
     }
 
-    .status-badge {
+    .brand p {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .status-pill {
       display: flex;
       align-items: center;
-      gap: 7px;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      backdrop-filter: blur(10px);
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--card-bg);
       border: 1px solid var(--card-border);
-      transition: all 0.3s ease;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    .status-badge.active {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.35);
-      color: #34d399;
-    }
-
-    .status-badge.stopped {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
+    .status-pill:hover { border-color: rgba(255,255,255,0.2); }
 
     .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
     }
 
-    .status-badge.active .status-dot {
-      background: #10b981;
-      box-shadow: 0 0 8px #10b981;
+    .status-dot.off { background: var(--danger); }
+    .status-dot.busy { background: var(--warning); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
-    .status-badge.stopped .status-dot {
-      background: #ef4444;
-      box-shadow: 0 0 8px #ef4444;
-    }
-
-    /* PWA Install Button */
-    .btn-install {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.25));
-      border: 1px solid rgba(139, 92, 246, 0.4);
-      color: #c4b5fd;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      backdrop-filter: blur(10px);
-      transition: all 0.2s ease;
-      margin-left: 8px;
-    }
-    .btn-install:active {
-      transform: scale(0.96);
-    }
-    .btn-install.installed {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.35);
-      color: #34d399;
-    }
-
-    /* Install Instructions Modal */
-    .install-modal {
+    /* Connection banner */
+    #setupBanner {
       display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(8px);
-      z-index: 9999;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .install-modal.open {
-      display: flex;
-    }
-    .install-dialog {
-      background: #111827;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
-      padding: 24px;
-      max-width: 360px;
-      width: 100%;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    }
-    .modal-title {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-    .modal-desc {
-      font-size: 14px;
-      color: #9ca3af;
+      background: linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(245,158,11,0.04) 100%);
+      border: 1px solid rgba(245,158,11,0.35);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
       margin-bottom: 16px;
+    }
+
+    #setupBanner .banner-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--warning);
+      margin-bottom: 4px;
+    }
+
+    #setupBanner .banner-text {
+      font-size: 12px;
+      color: var(--text-dim);
       line-height: 1.5;
     }
-    .modal-step {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
-      font-size: 13px;
-      color: #e5e7eb;
-    }
-    .step-num {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #3b82f6;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
+
+    #setupBanner code {
+      background: rgba(0,0,0,0.35);
+      padding: 1px 6px;
+      border-radius: 4px;
       font-size: 11px;
-      flex-shrink: 0;
-    }
-    .modal-btn-done {
-      width: 100%;
-      margin-top: 16px;
-      padding: 12px;
-      background: #3b82f6;
-      color: #fff;
-      font-weight: 600;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
+      color: #e8e8ed;
     }
 
-    /* Navigation Tabs */
-    .tab-bar {
+    #setupBanner .banner-actions {
       display: flex;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--card-border);
-      border-radius: 14px;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .banner-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(245,158,11,0.35);
+      background: rgba(0,0,0,0.4);
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .banner-input::placeholder { color: var(--text-dim); }
+    .banner-input:focus { outline: none; border-color: rgba(245,158,11,0.6); }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 6px;
       padding: 4px;
-      margin-bottom: 16px;
-      backdrop-filter: blur(12px);
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 10px 0;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 600;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-align: center;
-    }
-
-    .tab-btn.active {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Content Area */
-    .tab-content {
-      display: none;
-      flex: 1;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    /* Studio Creator Card */
-    .studio-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 18px;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-
-    .studio-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-
-    .studio-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      letter-spacing: -0.3px;
-    }
-
-    .genre-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 14px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: #e5e7eb;
-      transition: all 0.3s ease;
-    }
-
-    .genre-badge.anime, .genre-badge.anime_scene {
-      background: rgba(234, 179, 8, 0.2);
-      border-color: rgba(234, 179, 8, 0.5);
-      color: #fde047;
-      box-shadow: 0 0 14px rgba(234, 179, 8, 0.25);
-    }
-
-    .genre-badge.movie, .genre-badge.movie_scene {
-      background: rgba(239, 68, 68, 0.2);
-      border-color: rgba(239, 68, 68, 0.5);
-      color: #fca5a5;
-      box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);
-    }
-
-    .genre-badge.gaming {
-      background: rgba(16, 185, 129, 0.2);
-      border-color: rgba(16, 185, 129, 0.5);
-      color: #34d399;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
-    }
-
-    .genre-badge.scifi_lore {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: rgba(56, 189, 248, 0.5);
-      color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
-    }
-
-    .genre-badge.facts_mystery {
-      background: rgba(244, 114, 182, 0.2);
-      border-color: rgba(244, 114, 182, 0.5);
-      color: #f472b6;
-      box-shadow: 0 0 14px rgba(244, 114, 182, 0.25);
-    }
-
-    .genre-badge.nature {
-      background: rgba(52, 211, 153, 0.2);
-      border-color: rgba(52, 211, 153, 0.5);
-      color: #6ee7b7;
-      box-shadow: 0 0 14px rgba(52, 211, 153, 0.25);
-    }
-
-    .studio-input {
-      width: 100%;
-      background: rgba(10, 14, 24, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: var(--radius-md);
-      padding: 15px 16px;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 500;
-      outline: none;
-      transition: all 0.2s ease;
-      margin-bottom: 12px;
+      margin-bottom: 20px;
+      overflow-x: auto;
     }
 
-    .studio-input:focus {
-      border-color: #818cf8;
-      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
-    }
-
-    .chips-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      font-weight: 700;
-      margin-bottom: 6px;
-      letter-spacing: 0.5px;
-    }
-
-    .chips-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-bottom: 18px;
-    }
-
-    .chip {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 6px 12px;
-      font-size: 12px;
-      color: #cbd5e1;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      user-select: none;
-    }
-
-    .chip:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.22);
-    }
-
-    .options-row {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .opt-group {
+    .tab {
       flex: 1;
-    }
-
-    .opt-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      display: block;
-    }
-
-    .opt-select {
-      width: 100%;
-      background: rgba(10, 14, 24, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
       padding: 10px 12px;
-      color: #fff;
-      font-size: 13px;
-      outline: none;
-    }
-
-    .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 18px;
-      font-size: 13px;
-      color: #e2e8f0;
-      cursor: pointer;
-    }
-
-    .btn-create-spark {
-      width: 100%;
-      padding: 17px;
       border: none;
-      border-radius: var(--radius-md);
-      background: linear-gradient(135deg, #6366f1, #8b5cf6 60%, #ec4899);
-      color: #fff;
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-      cursor: pointer;
-      box-shadow: 0 4px 22px rgba(99, 102, 241, 0.45);
-      transition: all 0.25s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
-    .btn-create-spark:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 28px rgba(99, 102, 241, 0.6);
-    }
-
-    .btn-create-spark:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    /* Live Studio Progress Stepper */
-    .studio-progress-card {
-      display: none;
-      background: rgba(18, 24, 38, 0.95);
-      border: 1px solid rgba(99, 102, 241, 0.4);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-    }
-
-    .studio-progress-card.active {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .prog-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .prog-topic {
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .prog-badge {
-      font-size: 11px;
-      font-weight: 700;
-      color: #818cf8;
-      background: rgba(99, 102, 241, 0.15);
-      padding: 4px 10px;
-      border-radius: 12px;
-    }
-
-    .prog-bar-bg {
-      width: 100%;
-      height: 8px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 5px;
-      overflow: hidden;
-      margin: 12px 0;
-    }
-
-    .prog-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #6366f1, #10b981);
-      border-radius: 5px;
-      transition: width 0.4s ease;
-    }
-
-    .stepper-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .step-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: var(--radius-sm);
       font-size: 13px;
-      color: #94a3b8;
-    }
-
-    .step-item.current {
-      color: #fff;
       font-weight: 600;
-    }
-
-    .step-item.done {
-      color: #34d399;
-    }
-
-    .step-indicator {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
-      flex-shrink: 0;
+      gap: 6px;
     }
 
-    .step-item.current .step-indicator {
-      background: #6366f1;
-      color: #fff;
-      box-shadow: 0 0 10px #6366f1;
-      animation: pulse 1.5s infinite;
+    .tab.active {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 4px 12px var(--accent-glow);
     }
 
-    .step-item.done .step-indicator {
-      background: #10b981;
-      color: #fff;
-    }
+    .tab:not(.active):hover { color: var(--text); background: rgba(255,255,255,0.04); }
 
-    /* Result Card */
-    .result-card {
-      display: none;
-      background: rgba(16, 185, 129, 0.09);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .result-card.active {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .result-player-wrapper {
-      border-radius: 14px;
-      overflow: hidden;
-      margin: 14px 0;
-      background: #000;
-      aspect-ratio: 9 / 16;
-      max-height: 440px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .result-player {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
     /* Hero Maker Card */
     .hero-card {
@@ -624,1106 +239,904 @@
       width: 100%;
       padding: 15px;
       border-radius: var(--radius-md);
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
       border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-toggle.start {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: #ffffff;
-      box-shadow: 0 6px 24px var(--accent-green-glow);
-    }
-
-    .btn-toggle.stop {
-      background: linear-gradient(135deg, #ef4444, #dc2626);
-      color: #ffffff;
-      box-shadow: 0 6px 24px var(--accent-red-glow);
-    }
-
-    .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .kpi-item {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: var(--radius-sm);
-      padding: 10px 8px;
-      text-align: center;
-    }
-
-    .kpi-num {
-      font-size: 20px;
-      font-weight: 800;
-      color: #fff;
-    }
-
-    .kpi-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      font-weight: 600;
-      margin-top: 2px;
-    }
-
-    /* Pipeline Tracker */
-    .pipeline-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px 18px;
-      backdrop-filter: blur(16px);
-      margin-bottom: 16px;
-    }
-
-    .pipeline-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .pipeline-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .pipeline-current-topic {
-      font-size: 12px;
-      color: #60a5fa;
-      font-weight: 600;
-      max-width: 60%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .pipeline-steps {
-      display: flex;
-      gap: 4px;
-      position: relative;
-    }
-
-    .pipe-step {
-      flex: 1;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 4px;
-      transition: all 0.3s ease;
-      position: relative;
-    }
-
-    .pipe-step.done {
-      background: #10b981;
-    }
-
-    .pipe-step.current {
-      background: #3b82f6;
-      box-shadow: 0 0 10px #3b82f6;
-      animation: pulse 1.5s infinite;
-    }
-
-    .pipeline-labels {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 8px;
-      font-size: 10px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .pipeline-detail {
-      font-size: 12px;
-      color: #d1d5db;
-      margin-top: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* Gallery */
-    .gallery-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding-bottom: 24px;
-    }
-
-    .video-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      backdrop-filter: blur(16px);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .video-preview-wrapper {
-      position: relative;
-      width: 100%;
-      background: #000;
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      aspect-ratio: 9 / 16;
-      max-height: 420px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .video-preview-wrapper video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .video-meta-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .video-topic {
       font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .video-duration {
-      font-size: 12px;
-      color: var(--text-muted);
       font-weight: 600;
-    }
-
-    /* Terminal */
-    .terminal-card {
-      background: rgba(10, 14, 24, 0.95);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      color: #a7f3d0;
-      min-height: 320px;
-      max-height: 520px;
-      overflow-y: auto;
-      line-height: 1.6;
-    }
-
-    .terminal-header {
+      cursor: pointer;
+      transition: all 0.25s;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      justify-content: center;
+      gap: 10px;
     }
 
-    .terminal-title {
-      font-size: 11px;
-      color: #94a3b8;
-      font-weight: 600;
-      text-transform: uppercase;
+    .btn-start {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: white;
+      box-shadow: 0 6px 24px rgba(34,197,94,0.35);
     }
 
-    /* Settings */
-    .settings-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      backdrop-filter: blur(16px);
+    .btn-start:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(34,197,94,0.45); }
+
+    .btn-stop {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      box-shadow: 0 6px 24px rgba(239,68,68,0.35);
     }
 
-    .form-group {
-      margin-bottom: 16px;
+    .btn-stop:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(239,68,68,0.45); }
+
+    .btn-create {
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+      color: white;
+      box-shadow: 0 6px 24px var(--accent-glow);
     }
 
-    .form-label {
+    .btn-create:hover { transform: translateY(-1px); }
+    .btn-create:disabled, .btn-start:disabled, .btn-stop:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Form fields */
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
       display: block;
       font-size: 12px;
       font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
+      color: var(--text-dim);
       margin-bottom: 6px;
     }
 
-    .form-textarea {
+    .field input, .field select, .field textarea {
       width: 100%;
-      height: 100px;
-      background: rgba(10, 14, 24, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 12px 14px;
       border-radius: var(--radius-sm);
-      padding: 10px;
-      color: #fff;
-      font-size: 13px;
+      border: 1px solid var(--card-border);
+      background: rgba(0,0,0,0.3);
+      color: var(--text);
+      font-size: 14px;
       font-family: inherit;
-      resize: vertical;
-      outline: none;
+      transition: border-color 0.2s;
     }
 
-    .form-row {
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .field textarea { resize: vertical; min-height: 70px; }
+
+    .chip-row {
       display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: rgba(0,0,0,0.25);
+      color: var(--text-dim);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    /* Stepper */
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 14px 0;
+      flex-wrap: wrap;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .step.done .step-num { background: var(--success); border-color: var(--success); color: white; }
+    .step.active .step-num { background: var(--accent); border-color: var(--accent); color: white; animation: pulse 1.2s infinite; }
+    .step.active { color: var(--text); }
+
+    .step-arrow { color: var(--text-dim); font-size: 10px; }
+
+    /* Log viewer */
+    .log-view {
+      background: rgba(0,0,0,0.45);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #a8b3cf;
+      max-height: 420px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Gallery grid */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 12px;
     }
 
-    .form-input, .form-select {
-      width: 100%;
-      background: rgba(10, 14, 24, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: var(--radius-sm);
-      padding: 10px;
-      color: #fff;
-      font-size: 13px;
-      outline: none;
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: all 0.2s;
     }
 
-    .btn-save {
+    .card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-2px); }
+
+    .card video {
       width: 100%;
-      padding: 12px;
-      background: #3b82f6;
-      border: none;
+      aspect-ratio: 9/16;
+      object-fit: cover;
+      background: #000;
+      display: block;
+    }
+
+    .card .card-body {
+      padding: 10px 12px;
+    }
+
+    .card .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card .card-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .card .card-actions {
+      display: flex;
+      gap: 6px;
+      padding: 0 12px 12px;
+    }
+
+    .btn-sm {
+      flex: 1;
+      padding: 7px;
       border-radius: var(--radius-sm);
-      color: #fff;
-      font-weight: 700;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 600;
       cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      text-decoration: none;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    .btn-sm:hover { background: rgba(255,255,255,0.1); }
+    .btn-sm.danger { color: var(--danger); border-color: rgba(239,68,68,0.3); }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+    .toggle-row .toggle-label { font-size: 13px; }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .switch input { display: none; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      cursor: pointer;
+      transition: 0.25s;
+    }
+
+    .slider:before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: white;
+      transition: 0.25s;
+    }
+
+    input:checked + .slider { background: var(--success); }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat-card .stat-num {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .stat-card .stat-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: #12121a;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      max-width: 420px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .modal video { width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: #000; }
+    .modal .modal-body { padding: 16px; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1e1e2e;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      font-size: 13px;
+      z-index: 200;
+      transition: transform 0.3s;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      max-width: 90vw;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    .muted { color: var(--text-dim); }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
+
+    .qa {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 13px;
+    }
+
+    .qa:last-child { border-bottom: none; }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .badge.ok { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge.no { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .badge.warn { background: rgba(245,158,11,0.15); color: var(--warning); }
+
+    @media (max-width: 720px) {
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .tab { font-size: 11px; padding: 9px 8px; }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header>
-    <div class="brand">
-      <div class="brand-icon">⚡️</div>
-      <div class="brand-name">Shorts Factory</div>
-      <button id="installAppBtn" class="btn-install" onclick="handleInstallClick()">
-        <span>📲</span> <span id="installBtnText">Install App</span>
-      </button>
-    </div>
-    <div id="statusBadge" class="status-badge stopped">
-      <div class="status-dot"></div>
-      <span id="statusText">STOPPED</span>
-    </div>
-  </header>
+  <div class="bg-glow"></div>
+  <div class="bg-glow2"></div>
 
-  <!-- PWA Install Modal -->
-  <div id="installModal" class="install-modal" onclick="closeInstallModal(event)">
-    <div class="install-dialog" onclick="event.stopPropagation()">
-      <div class="modal-title">Install Shorts Factory</div>
-      <div class="modal-desc">Install this dashboard on your home screen for full-screen native access with one tap:</div>
-      <div class="modal-step">
-        <div class="step-num">1</div>
-        <div class="step-text">Tap the <strong>Share</strong> button (📤) in Safari or Chrome toolbar.</div>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">⚡️</div>
+        <div>
+          <h1>AI Shorts Factory</h1>
+          <p>Automated vertical video pipeline</p>
+        </div>
       </div>
-      <div class="modal-step">
-        <div class="step-num">2</div>
-        <div class="step-text">Scroll down and tap <strong>Add to Home Screen</strong> (➕).</div>
+      <div class="status-pill" onclick="checkStatus()">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Idle</span>
       </div>
-      <div class="modal-step">
-        <div class="step-num">3</div>
-        <div class="step-text">Tap <strong>Add</strong> in the top right corner.</div>
-      </div>
-      <button class="modal-btn-done" onclick="closeInstallModal()">Got it</button>
-    </div>
-  </div>
+    </header>
 
-  <!-- Tabs Navigation -->
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('creator')">✨ Studio</button>
-    <button class="tab-btn" onclick="switchTab('deliverables')">📹 Shorts</button>
-    <button class="tab-btn" onclick="switchTab('autopilot')">🤖 Auto-Pilot</button>
-    <button class="tab-btn" onclick="switchTab('logs')">📜 Live Logs</button>
-    <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
-  </div>
-
-  <!-- TAB 1: CREATOR STUDIO (DEFAULT) -->
-  <div id="tab-creator" class="tab-content active">
-    <!-- Remote Setup Banner (hidden when backend is connected) -->
-    <div id="setupBanner" style="display:none; background:linear-gradient(135deg, rgba(99,102,241,0.18), rgba(236,72,153,0.14)); border:1px solid rgba(99,102,241,0.35); border-radius:16px; padding:18px 16px; margin-bottom:14px; text-align:center;">
-      <div style="font-size:24px; margin-bottom:6px;">📡</div>
-      <div style="font-size:15px; font-weight:700; color:#e2e8f0; margin-bottom:4px;">Mac Engine Standby</div>
-      <div style="font-size:12px; color:#94a3b8; line-height:1.5; margin-bottom:12px;">
-        Connecting to: <code id="bannerCurrentHost" style="color:#a5b4fc; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">https://ninad-shorts.loca.lt</code><br>
-        Make sure your Mac is running <code>python scripts/shortsctl.py tunnel</code>
+    <div id="setupBanner" style="display:none; background:linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(245,158,11,0.04) 100%); border:1px solid rgba(245,158,11,0.35); border-radius:var(--radius-md); padding:16px 18px; margin-bottom:16px;">
+      <div class="banner-title">Connect this dashboard</div>
+      <div class="banner-text">
+        This dashboard needs the factory's access token to act. Paste it once; it is kept in this page only (never in browser storage) and exchanged for a secure session cookie. Get it from <code>SHORTS_UI_TOKEN</code> in the factory's <code>.env</code>, on the machine that runs <code>python scripts/web_ui.py</code>.
       </div>
-      <div style="display:flex; gap:6px; max-width:360px; margin:0 auto;">
-        <input id="quickConnectInput" type="text" placeholder="https://ninad-shorts.loca.lt" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:#e2e8f0; font-size:13px; outline:none;">
-        <button onclick="quickConnect()" style="padding:10px 14px; background:#6366f1; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Connect</button>
-      </div>
-      <div style="display:flex; justify-content:center; gap:8px; margin-top:10px;">
-        <button onclick="recheckConnection()" style="padding:6px 14px; background:rgba(255,255,255,0.06); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:12px; cursor:pointer;">🔄 Retry Connection</button>
-        <button onclick="useDefaultTunnel()" style="padding:6px 14px; background:rgba(99,102,241,0.15); color:#c7d2fe; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-size:12px; cursor:pointer;">⚡️ Use Default Tunnel</button>
+      <div class="banner-actions">
+        <input type="password" id="apiTokenInput" class="banner-input" placeholder="Access token" autocomplete="off">
+        <button class="btn-sm" style="flex:0 0 auto; padding:10px 16px;" onclick="saveAccessToken()">Connect</button>
+        <button class="btn-sm" style="flex:0 0 auto; padding:10px 16px;" onclick="recheckConnection()">Recheck</button>
       </div>
     </div>
-    <div class="studio-card">
-      <div class="studio-header">
-        <div class="studio-title">
-          <span>⚡️</span> Instant Short Creator
-        </div>
-        <div id="detectedGenreBadge" class="genre-badge anime">
-          ⚡️ Anime Detected
-        </div>
-      </div>
 
-      <input
-        id="studioTopicInput"
-        type="text"
-        class="studio-input"
-        placeholder="Type any word or topic: e.g. one-punch man anime..."
-        value="one-punch man anime"
-      />
-
-      <div class="chips-label">Quick Suggestions:</div>
-      <div class="chips-row">
-        <div class="chip" onclick="setStudioTopic('Saitama vs Boros fight scene')">🔥 Saitama Fight Scene</div>
-        <div class="chip" onclick="setStudioTopic('Batman interrogation movie scene')">🎬 Batman Movie Scene</div>
-        <div class="chip" onclick="setStudioTopic('one-punch man anime lore')">🥊 Anime Lore (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('stoic mindset under pressure')">🏛️ Stoic Wisdom (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('dark matter space paradox')">🌌 Cosmic Mystery (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('aurora borealis northern lights')">✨ Nature ASMR</div>
-      </div>
-
-      <div class="options-row">
-        <div class="opt-group" style="flex:1;">
-          <label class="opt-label">Duration</label>
-          <select id="studioDuration" class="opt-select">
-            <option value="30">30 Seconds</option>
-            <option value="45" selected>45 Seconds (Optimal)</option>
-            <option value="60">60 Seconds</option>
-          </select>
-        </div>
-      </div>
-
-      <label class="checkbox-row">
-        <input type="checkbox" id="studioAutoUpload" checked />
-        <span>Auto-upload to YouTube Shorts & Instagram upon Remotion render</span>
-      </label>
-
-      <button id="btnCreateShort" class="btn-create-spark" onclick="triggerCreateShort()">
-        <span>🚀</span> <span>Create Short with Remotion</span>
-      </button>
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" data-tab="creator" onclick="switchTab('creator')">🎬 Creator</button>
+      <button class="tab" data-tab="shorts" onclick="switchTab('shorts')">📚 Shorts</button>
+      <button class="tab" data-tab="autopilot" onclick="switchTab('autopilot')">🤖 Auto-Pilot</button>
+      <button class="tab" data-tab="logs" onclick="switchTab('logs')">📜 Live Logs</button>
+      <button class="tab" data-tab="settings" onclick="switchTab('settings')">⚙️ Settings</button>
     </div>
 
-    <!-- Active Generation Stepper -->
-    <div id="studioProgressCard" class="studio-progress-card">
-      <div class="prog-header">
-        <div id="progTopicTitle" class="prog-topic">Generating Short...</div>
-        <div id="progStatusLabel" class="prog-badge">IN PROGRESS</div>
+    <!-- TAB 1: CREATOR STUDIO (DEFAULT) -->
+    <div id="tab-creator" class="tab-panel active">
+      <div class="hero-card">
+        <div class="field">
+          <label>Topic</label>
+          <textarea id="topic" placeholder="one-punch man anime&#10;dark matter mystery&#10;cyberpunk city">one-punch man anime</textarea>
+        </div>
+        <div class="field">
+          <label>Genre</label>
+          <div class="chip-row" id="genreChips">
+            <button class="chip active" data-genre="anime" onclick="pickGenre('anime')">Anime</button>
+            <button class="chip" data-genre="movie" onclick="pickGenre('movie')">Movie recap</button>
+            <button class="chip" data-genre="gaming" onclick="pickGenre('gaming')">Gaming</button>
+            <button class="chip" data-genre="scifi_lore" onclick="pickGenre('scifi_lore')">Sci-fi lore</button>
+            <button class="chip" data-genre="facts_mystery" onclick="pickGenre('facts_mystery')">Facts &amp; mystery</button>
+            <button class="chip" data-genre="nature" onclick="pickGenre('nature')">Nature</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Duration: <span id="durLabel">45s</span></label>
+          <input type="range" id="duration" min="20" max="60" value="45" oninput="document.getElementById('durLabel').textContent = this.value + 's'">
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Auto-upload when done</span>
+          <label class="switch">
+            <input type="checkbox" id="autoUpload" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Public (uncheck = private upload)</span>
+          <label class="switch">
+            <input type="checkbox" id="privacy" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button class="btn-toggle btn-create" id="createBtn" onclick="createShort()">
+          ✨ Create Short
+        </button>
+        <div class="stepper" id="stepper">
+          <div class="step" data-step="script"><div class="step-num">1</div><span>Script</span></div>
+          <div class="step-arrow">→</div>
+          <div class="step" data-step="voice"><div class="step-num">2</div><span>Voice</span></div>
+          <div class="step-arrow">→</div>
+          <div class="step" data-step="visuals"><div class="step-num">3</div><span>Visuals</span></div>
+          <div class="step-arrow">→</div>
+          <div class="step" data-step="edit"><div class="step-num">4</div><span>Edit</span></div>
+          <div class="step-arrow">→</div>
+          <div class="step" data-step="upload"><div class="step-num">5</div><span>Upload</span></div>
+          <div class="step-arrow">→</div>
+          <div class="step" data-step="done"><div class="step-num">6</div><span>Done</span></div>
+        </div>
+        <div id="createMsg" class="muted" style="font-size:12px; margin-top:6px;">Ready. The pipeline runs on your machine; this panel follows it.</div>
       </div>
-      <div class="prog-bar-bg">
-        <div id="progBarFill" class="prog-bar-fill"></div>
-      </div>
-      <div id="progDetailText" style="font-size:12px; color:#cbd5e1; margin-bottom:12px;">Initializing...</div>
+    </div>
 
-      <div class="stepper-list">
-        <div id="step-genre" class="step-item current">
-          <div class="step-indicator">1</div>
-          <span>Genre & Story Angle Classification</span>
+    <!-- TAB 2: SHORTS LIBRARY -->
+    <div id="tab-shorts" class="tab-panel">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Shorts</div></div>
+        <div class="stat-card"><div class="stat-num" id="statToday">0</div><div class="stat-label">Today</div></div>
+        <div class="stat-card"><div class="stat-num" id="statQueue">0</div><div class="stat-label">Queued uploads</div></div>
+      </div>
+      <div class="gallery" id="gallery"></div>
+      <div class="empty" id="galleryEmpty">No shorts yet. Create one from the Creator tab.</div>
+    </div>
+
+    <!-- TAB 3: AUTO-PILOT -->
+    <div id="tab-autopilot" class="tab-panel">
+      <div class="hero-card">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+          <div style="width:40px; height:40px; border-radius:12px; background:rgba(99,102,241,0.15); display:flex; align-items:center; justify-content:center; font-size:20px;">🤖</div>
+          <div>
+            <div style="font-size:14px; font-weight:600;">Continuous maker</div>
+            <div class="muted" style="font-size:11px;">Makes one short after another until you stop it</div>
+          </div>
         </div>
-        <div id="step-script-ui" class="step-item">
-          <div class="step-indicator">2</div>
-          <span>High-Retention AI Script</span>
+        <div class="qa"><span>Maker status</span><span class="badge" id="makerBadge">…</span></div>
+        <div class="qa"><span>Shorts made</span><span id="makerCount">0 total, 0 today</span></div>
+        <div class="qa"><span>Daily cap</span><span id="makerCap">—</span></div>
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button class="btn-toggle btn-start" id="makerStartBtn" style="flex:1; padding:12px;" onclick="makerStart()">▶ Start making</button>
+          <button class="btn-toggle btn-stop" id="makerStopBtn" style="flex:1; padding:12px; display:none;" onclick="makerStop()">⏹ Stop maker</button>
         </div>
-        <div id="step-voice" class="step-item">
-          <div class="step-indicator">3</div>
-          <span>Neural Edge-TTS Voiceover</span>
+        <div class="field" style="margin-top:12px;">
+          <label>Daily cap (0 = no cap)</label>
+          <input type="number" id="makerCapInput" min="0" value="0" style="width:100px;">
         </div>
-        <div id="step-scenes-ui" class="step-item">
-          <div class="step-indicator">4</div>
-          <span>1080x1920 AI Visual Scenes</span>
-        </div>
-        <div id="step-render-ui" class="step-item">
-          <div class="step-indicator">5</div>
-          <span>Remotion Engine 1080x1920 Render</span>
-        </div>
-        <div id="step-upload-ui" class="step-item">
-          <div class="step-indicator">6</div>
-          <span>YouTube & Instagram Direct Upload</span>
+        <div class="muted" style="font-size:11px; margin-top:8px;">
+          Uploads follow your privacy choice here and in Settings. The maker keeps a state file on the machine; a STOP file or the stop button ends it cleanly.
         </div>
       </div>
     </div>
 
-    <!-- Completed Video Result Card -->
-    <div id="studioResultCard" class="result-card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:16px; font-weight:800; color:#34d399;">🎉 Short Ready & Published!</span>
-        <button onclick="resetStudio()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:13px; font-weight:600;">Create Another</button>
-      </div>
-
-      <div class="result-player-wrapper">
-        <video id="resultVideoPlayer" class="result-player" controls playsinline></video>
-      </div>
-
-      <div id="resultMetaInfo" style="font-size:13px; color:#e2e8f0; line-height:1.5;"></div>
-    </div>
-  </div>
-
-  <!-- TAB 2: DELIVERABLES GALLERY -->
-  <div id="tab-deliverables" class="tab-content">
-    <div id="galleryList" class="gallery-list">
-      <div class="empty-state">Loading generated Shorts...</div>
-    </div>
-  </div>
-
-  <!-- TAB 3: AUTO-PILOT MAKER -->
-  <div id="tab-autopilot" class="tab-content">
-    <div class="hero-card">
-      <button id="toggleBtn" class="btn-toggle start" onclick="toggleMaker()">
-        ▶ Start Auto-Pilot Maker
-      </button>
-      <div class="kpi-row">
-        <div class="kpi-item">
-          <div id="todayCount" class="kpi-num">0</div>
-          <div class="kpi-label">Today</div>
+    <!-- TAB 4: LIVE LOGS -->
+    <div id="tab-logs" class="tab-panel">
+      <div class="hero-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div style="font-size:14px; font-weight:600;">Pipeline log</div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-sm" onclick="refreshLogs()" style="padding:8px 14px;">Refresh</button>
+            <button class="btn-sm" onclick="autoScroll = !autoScroll; this.textContent = autoScroll ? 'Auto-scroll: on' : 'Auto-scroll: off';" style="padding:8px 14px;">Auto-scroll: on</button>
+          </div>
         </div>
-        <div class="kpi-item">
-          <div id="totalCount" class="kpi-num">0</div>
-          <div class="kpi-label">Total</div>
-        </div>
-        <div class="kpi-item">
-          <div id="modePill" class="kpi-num" style="font-size: 15px; padding-top: 6px;">REMOTION</div>
-          <div class="kpi-label">Engine</div>
-        </div>
+        <div class="log-view" id="logView">Loading…</div>
       </div>
     </div>
 
-    <div class="pipeline-card">
-      <div class="pipeline-header">
-        <span class="pipeline-title">Live Pipeline</span>
-        <span id="currentTopic" class="pipeline-current-topic">Idle</span>
+    <!-- TAB 5: SETTINGS -->
+    <div id="tab-settings" class="tab-panel">
+      <div class="hero-card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Defaults</div>
+        <div class="qa"><span>Upload target</span><span id="confTargets">—</span></div>
+        <div class="qa"><span>Privacy default</span><span id="confPrivacy">—</span></div>
+        <div class="qa"><span>Max duration</span><span id="confMaxDur">—</span></div>
+        <div class="qa"><span>Editing style</span><span id="confStyle">—</span></div>
+        <div class="qa"><span>Watermark logo</span><span id="confLogo">—</span></div>
+        <div class="qa"><span>Backend</span><span id="confBackend" class="mono">—</span></div>
       </div>
-      <div class="pipeline-steps">
-        <div id="step-script" class="pipe-step"></div>
-        <div id="step-captions" class="pipe-step"></div>
-        <div id="step-clips" class="pipe-step"></div>
-        <div id="step-render" class="pipe-step"></div>
-        <div id="step-upload" class="pipe-step"></div>
+      <div class="hero-card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Upload queue</div>
+        <div class="muted" style="font-size:12px; line-height:1.5; margin-bottom:10px;">
+          Videos that finished locally while the daily upload quota was exhausted wait here. Nothing uploads by itself from this list; you handle them from the machine.
+        </div>
+        <div id="queueList"><div class="empty">Queue is empty or not loaded yet.</div></div>
+        <button class="btn-sm" style="margin-top:10px; padding:10px 16px;" onclick="refreshQueue()">Refresh queue</button>
       </div>
-      <div class="pipeline-labels">
-        <span>Script</span>
-        <span>Audio</span>
-        <span>Visuals</span>
-        <span>Remotion</span>
-        <span>Upload</span>
-      </div>
-      <div id="pipelineDetail" class="pipeline-detail">
-        <span>●</span> <span>Maker is idle</span>
+      <div class="hero-card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Connection</div>
+        <div class="qa"><span>Session</span><span class="badge" id="sessionBadge">…</span></div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn-sm" style="padding:10px 16px;" onclick="logoutSession()">Log out</button>
+          <button class="btn-sm" style="padding:10px 16px;" onclick="recheckConnection()">Recheck connection</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- TAB 4: LIVE LOGS -->
-  <div id="tab-logs" class="tab-content">
-    <div class="terminal-card">
-      <div class="terminal-header">
-        <span class="terminal-title">Console Output (auto.log)</span>
-        <button onclick="fetchLogs()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:12px;">Refresh</button>
-      </div>
-      <div id="terminalBody" class="terminal-body">Connecting to logs...</div>
-    </div>
-  </div>
-
-  <!-- TAB 5: SETTINGS -->
-  <div id="tab-settings" class="tab-content">
-    <div class="settings-card">
-      <div class="form-group">
-        <label class="form-label">Auto-Pilot Topics (One per line)</label>
-        <textarea id="topicsInput" class="form-textarea" placeholder="one-punch man anime&#10;dark matter mystery&#10;cyberpunk city"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Gap Minutes</label>
-          <input id="gapInput" type="number" class="form-input" min="0" max="60" value="1">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Duration (sec)</label>
-          <input id="durationInput" type="number" class="form-input" min="10" max="60" value="45">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Upload Destination</label>
-        <select id="uploadInput" class="form-select">
-          <option value="true">YouTube & Instagram (Direct Publish)</option>
-          <option value="false">Local Deliverables Only</option>
-        </select>
-      </div>
-      <button class="btn-save" onclick="saveSettings()">Save Settings</button>
-
-      <div class="form-group" style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--card-border);">
-        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>⚡ Mac Factory Host</span>
-          <span id="connStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(255,255,255,0.06); color:#9ca3af;">Checking...</span>
-        </label>
-        <input id="apiBaseInput" type="text" class="form-input" placeholder="e.g. https://your-tunnel.loca.lt or http://10.83.93.253:8088">
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <button type="button" class="btn-save" style="flex:1; padding:8px 12px; font-size:13px; background:#4f46e5;" onclick="saveApiBase()">Connect Host</button>
-          <button type="button" class="btn-save" style="background:rgba(255,255,255,0.08); padding:8px 12px; font-size:13px;" onclick="resetApiBase()">Reset Local</button>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-          When opening on Vercel via cellular/mobile, run <code>python scripts/shortsctl.py tunnel</code> on your Mac and paste the HTTPS URL here.
-        </div>
+  <!-- MODAL -->
+  <div class="modal-backdrop" id="modalBack" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+      <video id="modalVideo" controls playsinline></video>
+      <div class="modal-body">
+        <div id="modalTitle" style="font-size:14px; font-weight:600; margin-bottom:4px;"></div>
+        <div id="modalMeta" class="muted" style="font-size:11px;"></div>
       </div>
     </div>
   </div>
+
+  <div id="toast"></div>
 
   <script>
     // Remote / Local API Gateway
     const DEFAULT_REMOTE_BACKEND = 'https://ninad-shorts.loca.lt';
-    let apiBase = localStorage.getItem('shorts_factory_api_base');
-    const isRemoteHost = location.hostname.includes('vercel.app') || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
+    let apiBase = localStorage.getItem('shorts_factory_api_base') || DEFAULT_REMOTE_BACKEND;
 
-    if (isRemoteHost) {
-      if (!apiBase || (location.protocol === 'https:' && apiBase.startsWith('http://'))) {
-        apiBase = DEFAULT_REMOTE_BACKEND;
-        localStorage.setItem('shorts_factory_api_base', apiBase);
-      }
-    } else if (apiBase === null) {
-      apiBase = '';
+    // Access token: entered once in the connect banner and kept ONLY in this
+    // page's memory (never written to browser storage), then sent as a
+    // request header. Closing the tab forgets it. It is never embedded in
+    // the app files or shown in responses.
+    let pageToken = '';
+    function savedToken() { return pageToken; }
+
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : '';
     }
 
-    function apiUrl(path) {
-      if (!apiBase) return path;
-      return apiBase.replace(/\/+$/, '') + path;
+    function apiHeaders() {
+      const h = { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' };
+      const tok = savedToken();
+      if (tok) h['X-Shorts-Token'] = tok;
+      return h;
     }
 
-    function apiFetch(path, options = {}) {
-      options.headers = Object.assign({
-        'Bypass-Tunnel-Reminder': 'true'
-      }, options.headers || {});
-      return fetch(apiUrl(path), options);
-    }
-
-    function saveApiBase() {
-      const val = document.getElementById('apiBaseInput').value.trim();
-      localStorage.setItem('shorts_factory_api_base', val);
-      apiBase = val;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      updateSetupBanner();
-      alert(val ? 'Host configured! Connected to ' + val : 'Reset to local origin.');
-    }
-
-    function resetApiBase() {
-      localStorage.removeItem('shorts_factory_api_base');
-      apiBase = isRemoteHost ? DEFAULT_REMOTE_BACKEND : '';
-      if (apiBase) localStorage.setItem('shorts_factory_api_base', apiBase);
-      document.getElementById('apiBaseInput').value = apiBase;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      updateSetupBanner();
-      alert(apiBase ? 'Reset to default tunnel: ' + apiBase : 'Reset to local origin.');
-    }
-
-    async function checkConnectionHealth() {
-      const badge = document.getElementById('connStatusBadge');
-      const banner = document.getElementById('setupBanner');
-      const bannerHost = document.getElementById('bannerCurrentHost');
-      if (bannerHost) bannerHost.innerText = apiBase || 'No endpoint configured';
+    async function establishSession() {
+      const tok = savedToken();
+      if (!tok) return false;
       try {
-        const res = await apiFetch('/api/status');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (badge) {
-          badge.style.background = 'rgba(16, 185, 129, 0.15)';
-          badge.style.color = '#34d399';
-          badge.innerText = `Connected (${data.running ? 'PID ' + data.pid : 'Standby'})`;
-        }
-        if (banner) banner.style.display = 'none';
-        return true;
-      } catch (e) {
-        if (badge) {
-          badge.style.background = 'rgba(239, 68, 68, 0.15)';
-          badge.style.color = '#f87171';
-          badge.innerText = 'Offline / Standby';
-        }
-        if (banner && isRemoteHost) {
-          banner.style.display = 'block';
-        }
-        return false;
-      }
+        const r = await fetch(apiBase.replace(/\/$/, '') + '/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+          body: JSON.stringify({ token: tok })
+        });
+        return r.ok;
+      } catch (e) { return false; }
     }
 
-    // PWA & Installation Handling
-    let deferredPrompt = null;
-    const installBtn = document.getElementById('installAppBtn');
-    const installBtnText = document.getElementById('installBtnText');
-    const installModal = document.getElementById('installModal');
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(console.warn);
-      });
+    async function apiFetch(path, opts = {}) {
+      const headers = Object.assign(apiHeaders(), opts.headers || {});
+      const r = await fetch(apiBase.replace(/\/$/, '') + path, Object.assign({}, opts, { headers, credentials: 'include' }));
+      if (r.status === 401) {
+        const banner = document.getElementById('setupBanner');
+        if (banner) { banner.style.display = 'block'; }
+        const badge = document.getElementById('sessionBadge');
+        if (badge) { badge.textContent = 'Locked: enter access token'; badge.className = 'badge no'; }
+        throw new Error('locked');
+      }
+      return r;
     }
 
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (isStandalone && installBtn) {
-      installBtn.classList.add('installed');
-      if (installBtnText) installBtnText.innerText = 'App Installed';
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      if (installBtn && !isStandalone) installBtn.style.display = 'inline-flex';
-    });
-
-    window.addEventListener('appinstalled', () => {
-      deferredPrompt = null;
-      if (installBtn) {
-        installBtn.classList.add('installed');
-        if (installBtnText) installBtnText.innerText = 'App Installed';
-      }
-    });
-
-    async function handleInstallClick() {
-      if (isStandalone) {
-        alert('Shorts Factory is already running as an installed shortcut app!');
-        return;
-      }
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (choice && choice.outcome === 'accepted') {
-          if (installBtn) installBtn.classList.add('installed');
-          deferredPrompt = null;
-        }
+    async function saveAccessToken() {
+      const el = document.getElementById('apiTokenInput');
+      const val = el.value.trim();
+      pageToken = val;
+      el.value = '';
+      const ok = await establishSession();
+      if (ok) {
+        alert(val ? 'Access token saved for this visit. It is not stored.' : 'Access token cleared.');
+        document.getElementById('setupBanner').style.display = 'none';
+        checkStatus(); refreshShorts(); refreshConfig();
       } else {
-        openInstallModal();
+        alert('That token was rejected. Check SHORTS_UI_TOKEN in the factory .env and try again.');
       }
     }
 
-    function openInstallModal() {
-      if (installModal) installModal.classList.add('open');
+    async function recheckConnection() {
+      const tok = savedToken();
+      if (tok) { await establishSession(); }
+      checkStatus(); refreshShorts(); refreshConfig();
     }
 
-    function closeInstallModal(e) {
-      if (e && e.target !== installModal) return;
-      if (installModal) installModal.classList.remove('open');
+    async function logoutSession() {
+      try { await apiFetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+      pageToken = '';
+      toast('Logged out. Enter the token again to reconnect.');
+      document.getElementById('setupBanner').style.display = 'block';
+      checkStatus();
     }
 
-    let isMakerRunning = false;
-    let autoScrollLogs = true;
-    let isCreatingShort = false;
-
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.toLowerCase().includes(tabId.slice(0, 4)));
-      if (targetBtn) targetBtn.classList.add('active');
-      
-      const targetContent = document.getElementById('tab-' + tabId);
-      if (targetContent) targetContent.classList.add('active');
-
-      if (tabId === 'logs') fetchLogs();
-      if (tabId === 'deliverables') fetchDeliverables();
-      if (tabId === 'settings') fetchSettings();
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+      if (name === 'shorts') refreshShorts();
+      if (name === 'logs') refreshLogs();
+      if (name === 'autopilot') refreshMaker();
+      if (name === 'settings') { refreshConfig(); refreshQueue(); }
     }
 
-    // Live Genre Auto-Detection on Topic Input
-    const studioInput = document.getElementById('studioTopicInput');
-    const genreBadge = document.getElementById('detectedGenreBadge');
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3200);
+    }
 
-    let classifyDebounce = null;
-    studioInput.addEventListener('input', () => {
-      clearTimeout(classifyDebounce);
-      classifyDebounce = setTimeout(updateGenreClassification, 250);
-    });
+    function pickGenre(g) {
+      document.querySelectorAll('#genreChips .chip').forEach(c => c.classList.toggle('active', c.dataset.genre === g));
+    }
 
-    async function updateGenreClassification() {
-      const topic = studioInput.value.trim();
-      if (!topic) {
-        genreBadge.className = 'genre-badge';
-        genreBadge.innerText = 'Topic Required';
-        return;
-      }
+    function selectedGenre() {
+      const a = document.querySelector('#genreChips .chip.active');
+      return a ? a.dataset.genre : 'anime';
+    }
+
+    function setStep(step, state) {
+      const el = document.querySelector('.step[data-step="' + step + '"]');
+      if (!el) return;
+      el.classList.remove('active', 'done');
+      if (state) el.classList.add(state);
+    }
+
+    function resetStepper() {
+      ['script','voice','visuals','edit','upload','done'].forEach(s => setStep(s, null));
+    }
+
+    async function createShort() {
+      const topic = document.getElementById('topic').value.trim() || 'one-punch man anime';
+      const duration = parseInt(document.getElementById('duration').value, 10) || 45;
+      const autoUpload = document.getElementById('autoUpload').checked;
+      const privacy = document.getElementById('privacy').checked ? 'public' : 'private';
+      const genre = selectedGenre();
+      const btn = document.getElementById('createBtn');
+      btn.disabled = true;
+      resetStepper();
+      document.getElementById('createMsg').textContent = 'Pipeline started on the machine: ' + topic;
       try {
-        const res = await apiFetch('/api/classify?topic=' + encodeURIComponent(topic));
-        const data = await res.json();
-        genreBadge.className = 'genre-badge ' + (data.category || 'general');
-        const icon = (data.category || '').includes('anime') ? '⚡️' : (data.category || '').includes('movie') ? '🎬' : data.category === 'gaming' ? '🎮' : data.category === 'scifi_lore' ? '🌌' : data.category === 'nature' ? '🌿' : '💡';
-        const modeLabel = data.audio_mode === 'original_voice'
-          ? '🎬 ORIGINAL SCENE VOICE'
-          : data.audio_mode === 'nature_asmr'
-          ? '🌿 ASMR SOUNDSCAPE'
-          : '🎙️ AI SCRIPT + VO';
-        genreBadge.innerText = `${icon} ${data.category.toUpperCase().replace('_', ' ')} • ${modeLabel}`;
-      } catch (e) {}
-    }
-
-    function setStudioTopic(topic) {
-      studioInput.value = topic;
-      updateGenreClassification();
-    }
-
-    // Trigger 1-Click Short Creation
-    async function triggerCreateShort() {
-      const topic = studioInput.value.trim();
-      if (!topic) return alert('Please enter a topic or keyword!');
-
-      const duration = parseInt(document.getElementById('studioDuration').value || 45);
-      const privacy = 'public';
-      const autoUpload = document.getElementById('studioAutoUpload').checked;
-
-      const createBtn = document.getElementById('btnCreateShort');
-      createBtn.disabled = true;
-      createBtn.innerHTML = '<span>⏳</span> <span>Generating Video...</span>';
-
-      const progressCard = document.getElementById('studioProgressCard');
-      progressCard.classList.add('active');
-      document.getElementById('progTopicTitle').innerText = topic;
-      document.getElementById('studioResultCard').classList.remove('active');
-
-      try {
-        const res = await apiFetch('/api/create', {
+        const r = await apiFetch('/api/create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic,
-            duration,
-            privacy,
-            upload: autoUpload,
-          }),
+          body: JSON.stringify({ topic: topic, genre: genre, duration: duration, auto_upload: autoUpload, privacy: privacy })
         });
-        const data = await res.json();
-        if (data.status === 'STARTED') {
-          isCreatingShort = true;
-          pollCreationProgress();
-        } else {
-          alert('Error starting generation: ' + (data.error || 'Unknown'));
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-          progressCard.classList.remove('active');
-        }
-      } catch (err) {
-        const isRemote = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && !location.hostname.startsWith('192.');
-        if (isRemote && !apiBase) {
-          if (confirm('⚠️ No backend connected!\n\nYour Mac\'s Shorts Factory server isn\'t linked yet. Go to Settings to enter your Mac\'s IP address?')) {
-            switchTab('settings');
-            setTimeout(() => document.getElementById('apiBaseInput')?.focus(), 300);
-          }
-        } else {
-          alert('Cannot reach backend: ' + err.message + '\n\nMake sure your Mac server is running (python scripts/shortsctl.py service restart).');
-        }
-        createBtn.disabled = false;
-        createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-        progressCard.classList.remove('active');
+        const data = await r.json();
+        pollCreate(data.job_id || data.id || '');
+      } catch (e) {
+        if (e.message !== 'locked') { document.getElementById('createMsg').textContent = 'Could not start: ' + e.message; }
+        btn.disabled = false;
       }
     }
 
-    // Poll Progress of Creation
-    async function pollCreationProgress() {
-      if (!isCreatingShort) return;
-      try {
-        const res = await apiFetch('/api/create/status');
-        const state = await res.json();
-
-        const barFill = document.getElementById('progBarFill');
-        const detailText = document.getElementById('progDetailText');
-        const statusLabel = document.getElementById('progStatusLabel');
-
-        detailText.innerText = state.detail || state.step || 'Processing...';
-
-        // Step highlights
-        const steps = ['genre', 'script-ui', 'voice', 'scenes-ui', 'render-ui', 'upload-ui'];
-        let progressPercent = 10;
-        let activeIdx = 0;
-
-        if (state.step === 'classify') { activeIdx = 0; progressPercent = 15; }
-        else if (state.step === 'script') { activeIdx = 1; progressPercent = 30; }
-        else if (state.step === 'voiceover') { activeIdx = 2; progressPercent = 45; }
-        else if (state.step === 'scenes') { activeIdx = 3; progressPercent = 65; }
-        else if (state.step === 'edit' || state.step === 'render') { activeIdx = 4; progressPercent = 85; }
-        else if (state.step === 'upload' || state.step === 'upload_instagram') { activeIdx = 5; progressPercent = 95; }
-
-        barFill.style.width = progressPercent + '%';
-
-        steps.forEach((s, idx) => {
-          const el = document.getElementById('step-' + s);
-          if (el) {
-            el.className = 'step-item ' + (idx < activeIdx ? 'done' : idx === activeIdx ? 'current' : '');
+    async function pollCreate(jobId) {
+      const steps = ['script','voice','visuals','edit','upload','done'];
+      let i = 0;
+      const timer = setInterval(async () => {
+        try {
+          const r = await apiFetch('/api/create/status' + (jobId ? ('?job_id=' + encodeURIComponent(jobId)) : ''));
+          const d = await r.json();
+          const stage = d.step || d.stage || d.current_step || '';
+          const idx = steps.indexOf(stage);
+          if (idx >= 0) {
+            steps.forEach((s, k) => setStep(s, k < idx ? 'done' : (k === idx ? 'active' : null)));
           }
+          if (d.status === 'success' || d.status === 'SUCCESS' || d.done) {
+            clearInterval(timer);
+            steps.forEach(s => setStep(s, 'done'));
+            document.getElementById('createMsg').textContent = 'Short ready' + (d.youtube_url ? (': ' + d.youtube_url) : '.');
+            document.getElementById('createBtn').disabled = false;
+            refreshShorts();
+          } else if (d.status === 'failed' || d.status === 'FAILED') {
+            clearInterval(timer);
+            document.getElementById('createMsg').textContent = 'Failed' + (d.error ? (': ' + d.error) : '. Check Live Logs.');
+            document.getElementById('createBtn').disabled = false;
+          }
+        } catch (e) {
+          if (e.message === 'locked') { clearInterval(timer); document.getElementById('createBtn').disabled = false; }
+        }
+      }, 4000);
+    }
+
+    async function checkStatus() {
+      try {
+        const r = await apiFetch('/api/status');
+        const d = await r.json();
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        const busy = d.busy || d.running || d.status === 'busy';
+        dot.className = 'status-dot' + (busy ? ' busy' : '');
+        txt.textContent = busy ? 'Working' : 'Idle';
+        const badge = document.getElementById('sessionBadge');
+        if (badge) { badge.textContent = 'Connected'; badge.className = 'badge ok'; }
+        document.getElementById('setupBanner').style.display = 'none';
+      } catch (e) {
+        if (e.message !== 'locked') {
+          const dot = document.getElementById('statusDot');
+          dot.className = 'status-dot off';
+          document.getElementById('statusText').textContent = 'Offline';
+        }
+      }
+    }
+
+    async function refreshShorts() {
+      try {
+        const r = await apiFetch('/api/deliverables');
+        const d = await r.json();
+        const list = Array.isArray(d) ? d : (d.files || d.deliverables || d.videos || []);
+        const g = document.getElementById('gallery');
+        const empty = document.getElementById('galleryEmpty');
+        document.getElementById('statTotal').textContent = list.length;
+        if (!list.length) { g.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        g.innerHTML = '';
+        list.slice(0, 24).forEach(f => {
+          const name = f.name || f.filename || f.file || f;
+          const meta = f.size || f.created || '';
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML =
+            '<video muted playsinline preload="metadata"></video>' +
+            '<div class="card-body"><div class="card-title">' + String(name).replace(/[<>&]/g, '') + '</div>' +
+            '<div class="card-meta">' + String(meta).replace(/[<>&]/g, '') + '</div></div>' +
+            '<div class="card-actions"><button class="btn-sm" data-path="/deliverables/' + encodeURIComponent(name) + '">▶ Play</button>' +
+            '<button class="btn-sm danger" data-name="' + encodeURIComponent(name) + '">Delete</button></div>';
+          g.appendChild(card);
+          const vid = card.querySelector('video');
+          vid.dataset.src = '/deliverables/' + encodeURIComponent(name);
+          vid.onclick = () => playMedia(name);
+          card.querySelector('[data-path]').onclick = () => playMedia(name);
+          card.querySelector('[data-name]').onclick = () => deleteShort(name);
         });
-
-        if (!state.active) {
-          isCreatingShort = false;
-          const createBtn = document.getElementById('btnCreateShort');
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-
-          if (state.status === 'done' && state.result) {
-            barFill.style.width = '100%';
-            statusLabel.innerText = 'COMPLETED';
-            statusLabel.style.color = '#34d399';
-            steps.forEach(s => {
-              const el = document.getElementById('step-' + s);
-              if (el) el.className = 'step-item done';
-            });
-
-            // Show result card
-            showCreationResult(state.result);
-            fetchDeliverables();
-          } else {
-            statusLabel.innerText = 'FAILED';
-            statusLabel.style.color = '#f87171';
-            detailText.innerText = 'Failed: ' + (state.error || 'Unknown error');
-          }
-          return;
-        }
-
-        setTimeout(pollCreationProgress, 1200);
-      } catch (err) {
-        setTimeout(pollCreationProgress, 2000);
-      }
-    }
-
-    function showCreationResult(res) {
-      const resultCard = document.getElementById('studioResultCard');
-      resultCard.classList.add('active');
-
-      const player = document.getElementById('resultVideoPlayer');
-      const filename = (res.deliverable_file || '').split('/').pop();
-      if (filename) {
-        player.src = apiUrl('/deliverables/' + filename);
-      }
-
-      const metaEl = document.getElementById('resultMetaInfo');
-      const ytUrl = res.youtube_url ? `<a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline;">Watch on YouTube</a>` : 'Saved in deliverables';
-      const igStatus = res.instagram ? `<span style="margin-left:12px; color:#f472b6;">Instagram: ${res.instagram}</span>` : '';
-
-      metaEl.innerHTML = `
-        <div style="font-weight:700; margin-bottom:4px;">${res.topic}</div>
-        <div style="color:#94a3b8; font-size:12px; margin-bottom:8px;">Rendered in ${res.total_time_sec || 0}s • Style: ${res.style || 'Anime'} • Engine: Remotion</div>
-        <div style="margin-top:6px;">${ytUrl} ${igStatus}</div>
-      `;
-    }
-
-    function resetStudio() {
-      document.getElementById('studioResultCard').classList.remove('active');
-      document.getElementById('studioProgressCard').classList.remove('active');
-      document.getElementById('btnCreateShort').disabled = false;
-      document.getElementById('btnCreateShort').innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-    }
-
-    // Auto-pilot status & actions
-    async function fetchStatus() {
-      try {
-        const res = await apiFetch('/api/status');
-        const data = await res.json();
-        isMakerRunning = !!data.running;
-        
-        const badge = document.getElementById('statusBadge');
-        const badgeText = document.getElementById('statusText');
-        const toggleBtn = document.getElementById('toggleBtn');
-        
-        if (isMakerRunning) {
-          badge.className = 'status-badge active';
-          badgeText.innerText = `ACTIVE (${data.pid || 'ON'})`;
-          toggleBtn.className = 'btn-toggle stop';
-          toggleBtn.innerHTML = '⏹ Stop Auto-Pilot Maker';
-        } else {
-          badge.className = 'status-badge stopped';
-          badgeText.innerText = 'STOPPED';
-          toggleBtn.className = 'btn-toggle start';
-          toggleBtn.innerHTML = '▶ Start Auto-Pilot Maker';
-        }
-
-        document.getElementById('todayCount').innerText = data.today_made || 0;
-        document.getElementById('totalCount').innerText = data.total_made || 0;
-
-        if (data.pipeline) {
-          document.getElementById('currentTopic').innerText = data.pipeline.topic || 'Idle';
-          document.getElementById('pipelineDetail').innerHTML = `<span>●</span> <span>${data.pipeline.detail || 'Idle'}</span>`;
-          const stages = ['script', 'captions', 'clips', 'render', 'upload'];
-          const cur = data.pipeline.stage;
-          let curIdx = stages.indexOf(cur);
-          if (cur === 'upload_success') curIdx = 5;
-          stages.forEach((s, idx) => {
-            const el = document.getElementById('step-' + s);
-            if (!el) return;
-            el.className = 'pipe-step ' + (idx < curIdx ? 'done' : idx === curIdx ? 'current' : '');
-          });
-        }
-      } catch (e) {}
-    }
-
-    async function toggleMaker() {
-      const toggleBtn = document.getElementById('toggleBtn');
-      toggleBtn.disabled = true;
-      try {
-        const endpoint = isMakerRunning ? '/api/maker/stop' : '/api/maker/start';
-        await apiFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-        setTimeout(fetchStatus, 600);
       } catch (e) {
-        alert('Action failed: ' + e);
-      } finally {
-        toggleBtn.disabled = false;
+        if (e.message !== 'locked') toast('Could not load shorts: ' + e.message);
       }
     }
 
-    async function fetchDeliverables() {
+    async function playMedia(name) {
+      const url = apiBase.replace(/\/$/, '') + '/deliverables/' + encodeURIComponent(name);
+      const modal = document.getElementById('modalBack');
+      const video = document.getElementById('modalVideo');
+      const sameOrigin = url.startsWith(location.origin);
+      if (sameOrigin) {
+        video.src = url;
+      } else {
+        // Cross-origin (Vercel app): a plain <video> tag cannot send the
+        // token header, so fetch with credentials and play the blob.
+        try {
+          const r = await fetch(url, { headers: apiHeaders(), credentials: 'include' });
+          if (!r.ok) { toast('Playback failed: HTTP ' + r.status); return; }
+          const blob = await r.blob();
+          video.src = URL.createObjectURL(blob);
+        } catch (e) { toast('Playback failed: ' + e.message); return; }
+      }
+      document.getElementById('modalTitle').textContent = name;
+      document.getElementById('modalMeta').textContent = '';
+      modal.classList.add('open');
+      video.play().catch(() => {});
+    }
+
+    async function deleteShort(name) {
+      if (!confirm('Delete ' + name + ' from the machine?')) return;
       try {
-        const res = await apiFetch('/api/deliverables');
-        const data = await res.json();
-        const list = document.getElementById('galleryList');
-        if (!data.items || data.items.length === 0) {
-          list.innerHTML = '<div style="text-align:center; padding:30px; color:#9ca3af;">No Shorts generated yet. Create one above!</div>';
-          return;
-        }
-        list.innerHTML = data.items.map(it => {
-          const mediaUrl = it.url.startsWith('http') ? it.url : apiUrl(it.url);
-          return `
-          <div class="video-card">
-            <div class="video-preview-wrapper">
-              <video src="${mediaUrl}" controls playsinline preload="metadata"></video>
-            </div>
-            <div class="video-meta-row">
-              <div class="video-topic">${it.topic}</div>
-              <div class="video-duration">${it.duration}s • ${it.style || 'Anime'}</div>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#94a3b8;">
-              <span>${new Date(it.created_at).toLocaleDateString()}</span>
-              <a href="${mediaUrl}" download style="color:#60a5fa; text-decoration:none; font-weight:600;">⬇ Download MP4</a>
-            </div>
-          </div>
-        `;
-        }).join('');
+        const r = await apiFetch('/api/deliverables?name=' + encodeURIComponent(name), { method: 'DELETE' });
+        if (r.ok) { toast('Deleted ' + name); refreshShorts(); } else { toast('Delete failed: HTTP ' + r.status); }
+      } catch (e) { if (e.message !== 'locked') toast('Delete failed: ' + e.message); }
+    }
+
+    let autoScroll = true;
+
+    async function refreshLogs() {
+      try {
+        const r = await apiFetch('/api/logs?lines=60');
+        const d = await r.json();
+        const lines = d.lines || d.logs || [];
+        const view = document.getElementById('logView');
+        view.textContent = Array.isArray(lines) ? lines.join('\n') : String(lines);
+        if (autoScroll) view.scrollTop = view.scrollHeight;
       } catch (e) {
-        const list = document.getElementById('galleryList');
-        if (list) {
-          list.innerHTML = `
-            <div style="text-align:center; padding:32px 16px; color:#94a3b8;">
-              <div style="font-size:24px; margin-bottom:10px;">📡</div>
-              <div style="font-size:15px; font-weight:700; color:#e2e8f0; margin-bottom:6px;">Backend Endpoint Standby</div>
-              <div style="font-size:13px; color:#64748b; max-width:280px; margin:0 auto 16px;">Set your local server IP (e.g. <code>http://192.168.x.x:8088</code>) in <strong>Settings</strong> to view and stream videos on mobile.</div>
-              <button onclick="switchTab('settings')" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;">Open Settings</button>
-            </div>
-          `;
-        }
+        if (e.message !== 'locked') document.getElementById('logView').textContent = 'Could not load logs: ' + e.message;
       }
     }
 
-    async function fetchLogs() {
+    async function refreshMaker() {
       try {
-        const res = await apiFetch('/api/logs?lines=60');
-        const data = await res.json();
-        const el = document.getElementById('terminalBody');
-        el.innerText = (data.lines || []).join('');
-        if (autoScrollLogs) el.scrollTop = el.scrollHeight;
-      } catch (e) {}
-    }
-
-    async function fetchSettings() {
-      try {
-        const res = await apiFetch('/api/config');
-        const data = await res.json();
-        const cfg = data.config || {};
-        if (cfg.topics) document.getElementById('topicsInput').value = cfg.topics.join('\n');
-        if (cfg.gap_minutes !== undefined) document.getElementById('gapInput').value = cfg.gap_minutes;
-        if (cfg.duration !== undefined) document.getElementById('durationInput').value = cfg.duration;
-      } catch (e) {}
-    }
-
-    async function saveSettings() {
-      const topics = document.getElementById('topicsInput').value.split('\n').map(t => t.trim()).filter(Boolean);
-      const gap_minutes = parseInt(document.getElementById('gapInput').value || 1);
-      const duration = parseInt(document.getElementById('durationInput').value || 45);
-      try {
-        const res = await apiFetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topics, gap_minutes, duration }),
-        });
-        if (res.ok) alert('Settings saved successfully!');
+        const r = await apiFetch('/api/status');
+        const d = await r.json();
+        const running = d.maker_running || d.maker === 'running' || d.maker_running === true;
+        document.getElementById('makerBadge').textContent = running ? 'Running' : 'Stopped';
+        document.getElementById('makerBadge').className = 'badge ' + (running ? 'ok' : 'no');
+        document.getElementById('makerStartBtn').style.display = running ? 'none' : 'block';
+        document.getElementById('makerStopBtn').style.display = running ? 'block' : 'none';
+        document.getElementById('makerCount').textContent = (d.made_total || 0) + ' total, ' + (d.made_today || 0) + ' today';
+        document.getElementById('makerCap').textContent = (d.daily_cap === 0 || d.daily_cap === undefined) ? 'No cap' : d.daily_cap;
       } catch (e) {
-        alert('Failed to save settings: ' + e);
+        if (e.message !== 'locked') document.getElementById('makerBadge').textContent = 'Unknown';
       }
     }
 
-    // Quick-connect helpers
-    function quickConnect() {
-      const val = (document.getElementById('quickConnectInput').value || '').trim() || DEFAULT_REMOTE_BACKEND;
-      localStorage.setItem('shorts_factory_api_base', val);
-      apiBase = val;
-      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = val;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      alert('Host updated to: ' + val);
+    async function makerStart() {
+      try {
+        const cap = parseInt(document.getElementById('makerCapInput').value, 10) || 0;
+        const r = await apiFetch('/api/maker/start', { method: 'POST', body: JSON.stringify({ daily_cap: cap }) });
+        if (r.ok) { toast('Maker started'); refreshMaker(); } else { toast('Start failed: HTTP ' + r.status); }
+      } catch (e) { if (e.message !== 'locked') toast('Start failed: ' + e.message); }
     }
 
-    function useDefaultTunnel() {
-      localStorage.setItem('shorts_factory_api_base', DEFAULT_REMOTE_BACKEND);
-      apiBase = DEFAULT_REMOTE_BACKEND;
-      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = DEFAULT_REMOTE_BACKEND;
-      if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = DEFAULT_REMOTE_BACKEND;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
+    async function makerStop() {
+      try {
+        const r = await apiFetch('/api/maker/stop', { method: 'POST' });
+        if (r.ok) { toast('Stop signal sent'); refreshMaker(); } else { toast('Stop failed: HTTP ' + r.status); }
+      } catch (e) { if (e.message !== 'locked') toast('Stop failed: ' + e.message); }
     }
 
-    function recheckConnection() {
-      checkConnectionHealth().then(ok => {
-        if (ok) {
-          fetchStatus();
-          fetchDeliverables();
-          alert('Successfully connected to Mac engine!');
-        } else {
-          alert('Could not reach ' + (apiBase || 'endpoint') + '.\n\nPlease verify your Mac is running: python scripts/shortsctl.py tunnel');
-        }
-      });
-    }
-
-    function updateSetupBanner() {
-      const banner = document.getElementById('setupBanner');
-      if (!banner) return;
-      if (!isRemoteHost) {
-        banner.style.display = 'none';
-        return;
+    async function refreshConfig() {
+      try {
+        const r = await apiFetch('/api/config');
+        const d = await r.json();
+        document.getElementById('confTargets').textContent = [d.youtube === false ? null : 'YouTube', d.instagram === false ? null : 'Instagram'].filter(Boolean).join(' + ') || '—';
+        document.getElementById('confPrivacy').textContent = d.default_privacy || d.privacy || '—';
+        document.getElementById('confMaxDur').textContent = d.max_duration_seconds || d.max_duration || '—';
+        document.getElementById('confStyle').textContent = d.editing_style || d.style || '—';
+        document.getElementById('confLogo').textContent = d.logo_file ? 'Set' : 'Not set';
+        document.getElementById('confBackend').textContent = apiBase;
+        const saved = localStorage.getItem('shorts_factory_api_base');
+        if (!saved && apiBase !== DEFAULT_REMOTE_BACKEND) localStorage.setItem('shorts_factory_api_base', apiBase);
+      } catch (e) {
+        if (e.message !== 'locked') toast('Could not load config: ' + e.message);
       }
-      checkConnectionHealth();
     }
 
-    // Initialize
-    if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = apiBase || '';
-    if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = apiBase || '';
-    updateGenreClassification();
-    checkConnectionHealth();
-    fetchStatus();
-    fetchDeliverables();
-    setInterval(fetchStatus, 3000);
-    setInterval(checkConnectionHealth, 10000);
-    setInterval(() => {
-      if (document.getElementById('tab-logs').classList.contains('active')) fetchLogs();
-    }, 3000);
+    async function refreshQueue() {
+      try {
+        const r = await apiFetch('/api/queue');
+        const d = await r.json();
+        const items = d.items || d.queue || (Array.isArray(d) ? d : []);
+        const box = document.getElementById('queueList');
+        document.getElementById('statQueue').textContent = items.length;
+        if (!items.length) { box.innerHTML = '<div class="empty">Queue is empty.</div>'; return; }
+        box.innerHTML = items.map(q =>
+          '<div class="qa"><span>' + String(q.file || q.path || q.name || JSON.stringify(q)).replace(/[<>&]/g, '') + '</span><span class="badge warn">waiting</span></div>'
+        ).join('');
+      } catch (e) {
+        if (e.message !== 'locked') document.getElementById('queueList').innerHTML = '<div class="empty">Could not load queue.</div>';
+      }
+    }
+
+    // Init
+    (function init() {
+      establishSession().then(() => { checkStatus(); refreshShorts(); refreshConfig(); });
+      setInterval(() => { checkStatus(); }, 15000);
+    })();
   </script>
 </body>
 </html>
