@@ -173,13 +173,15 @@ Every Short then carries your logo (bottom right by default). Tune it with `LOGO
 
 ## Web UI security
 
-The dashboard serves state-changing controls (one-click create, maker start/stop, config save), and it is open on your network with an optional fixed tunnel address. Those endpoints are protected:
+The dashboard serves state-changing controls (one-click create, maker start/stop, config save) and read-only views (status, logs, config, deliverables, and the media files themselves), and it is open on your network with an optional fixed tunnel address. All of those endpoints are protected:
 
-- Opening the dashboard itself (from localhost, or a phone on your Wi-Fi) needs no setup: same-origin calls are allowed.
-- Anything calling from outside that page (another website, a script on the LAN, or through the public tunnel) must send the token from `SHORTS_UI_TOKEN` in .env as an `X-Shorts-Token` header (or `Authorization: Bearer <token>`). With no token set, outside callers are rejected.
-- If your Vercel mobile app calls the API directly, set `SHORTS_UI_TOKEN` in .env once and add the same header in the app.
-
-Read-only views (status, logs, deliverables) stay open, but cross-origin websites get no CORS header, so a browser on another site cannot read responses.
+- Opening the dashboard itself (from localhost, or a phone on your Wi-Fi) needs no setup: same-origin calls are allowed. The dashboard's own requests announce same-origin automatically, so live status polling and video playback keep working.
+- Anything calling from outside that page (another website, a script on the LAN, or through the public tunnel) must send the token from `SHORTS_UI_TOKEN` in .env as an `X-Shorts-Token` header (or `Authorization: Bearer <token>`) on every API call and media request. With no token set, outside callers are rejected.
+- Static assets (the dashboard page, manifest, icons, service worker) stay public, so the page itself always loads.
+- The token is only ever sent in request headers. It is never embedded in the served page, in links, or in any API response.
+- Direct navigation to an API URL (typing it into the address bar) is treated as outside the page and needs the token or localhost.
+- Browsers that predate the Sec-Fetch headers (Safari before 16.4, Chrome before 76, Firefox before 90) opening the dashboard from outside localhost cannot fetch reads or play media without the token; on such a browser use localhost or the Vercel app with the token.
+- If your Vercel mobile app calls the API directly, set `SHORTS_UI_TOKEN` in .env once and add the same header to every request in the app, reads included. Video playback in a plain `<video>` tag cannot send headers, so load media through an authenticated fetch in the app instead.
 
 ## Running steps by hand
 
