@@ -3,9 +3,12 @@
 Two contracts pinned here:
 
 1. The served dashboard never holds the token: web/index.html must not
-   embed SHORTS_UI_TOKEN, must not persist the token in localStorage or
-   any other browser storage, must log in once via POST /api/session,
-   and must authenticate API calls with the X-Shorts-Token header. The
+   persist the token in localStorage or any other browser storage, must
+   log in once via POST /api/session, and must authenticate API calls
+   with the session cookie or the X-Shorts-Token header. Mentioning the
+   env var's NAME in help text is not secret leakage, so the static page
+   assertions target browser storage, not prose; the LIVE token VALUE
+   must never appear in the served page, pinned by a dynamic check. The
    static assertions keep a regression (someone re-adding a stored
    token) from ever shipping.
 2. Media streaming: deliverable videos stream with Range support, but
@@ -137,10 +140,22 @@ def _frontend_source():
 
 def test_frontend_never_stores_or_embeds_the_token():
     html = _frontend_source()
-    assert "SHORTS_UI_TOKEN" not in html           # no env token name in the page
     assert "shorts_factory_api_token" not in html  # no token key in browser storage
     assert "apiTokenInput').value = savedToken()" not in html  # no prefill from storage
     assert "pageToken" in html                     # token kept in page memory only
+
+    # The precise leakage assertion: whatever token the server is actually
+    # configured with must never reach the browser, not even in a comment.
+    # A token NAME in help text is fine; only the VALUE is the secret.
+
+def test_served_page_never_contains_the_live_token_value(auth_server, monkeypatch):
+    secret = "live-secret-9c41f7e2a8b6d503"
+    monkeypatch.setenv("SHORTS_UI_TOKEN", secret)
+    host, port = auth_server
+    status, body, _ = _request(port, "GET", "/")
+    html = body.decode("utf-8")
+    assert status == 200
+    assert secret not in html
 
 
 def test_frontend_logs_in_once_and_authenticates_calls():
