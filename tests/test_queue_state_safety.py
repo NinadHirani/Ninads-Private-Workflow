@@ -85,3 +85,59 @@ def test_duplicate_video_is_not_enqueued_twice(tmp_path, monkeypatch):
     assert first["video_path"] == second["video_path"]
     items = json.loads(queue_file.read_text(encoding="utf-8"))
     assert len(items) == 1
+
+
+def test_enqueue_refuses_to_write_when_the_corrupt_backup_fails(tmp_path, monkeypatch):
+    """A corrupt queue whose backup cannot be created must stop the enqueue:
+    the original file is preserved and never silently replaced."""
+    queue_file = tmp_path / "dual_queue.json"
+    queue_file.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(uploader, "QUEUE_FILE", str(queue_file))
+
+    def failing_replace(src, dst, *a, **k):
+        raise OSError("backup failed")
+
+    monkeypatch.setattr(uploader.os, "replace", failing_replace)
+    with pytest.raises(RuntimeError):
+        uploader.enqueue_dual_upload("b.mp4", "m.json", "quota")
+    # The corrupt file survives untouched; nothing was written over it.
+    assert queue_file.read_text(encoding="utf-8") == "{not json"
+    leftovers = [
+        p.name for p in tmp_path.iterdir()
+        if p.name != "dual_queue.json" and not p.name.endswith(".lock")
+    ]
+    assert leftovers == []
+
+
+@pytest.mark.skipif(uploader.fcntl is None, reason="POSIX-only cross-process lock")
+def test_enqueue_aborts_when_the_cross_process_lock_cannot_be_taken(tmp_path, monkeypatch):
+    """On POSIX, a failed lock is fatal: enqueue must abort instead of
+    continuing unlocked and reopening the lost-update race."""
+    queue_file = tmp_path / "dual_queue.json"
+    monkeypatch.setattr(uploader, "QUEUE_FILE", str(queue_file))
+
+    class LockedOut:
+        LOCK_EX = 2
+
+        @staticmethod
+        def flock(fd, op):
+            raise OSError("lock held elsewhere")
+
+    monkeypatch.setattr(uploader, "fcntl", LockedOut)
+    with pytest.raises(RuntimeError):
+        uploader.enqueue_dual_upload("b.mp4", "m.json", "test")
+    # The refused enqueue must not have written anything.
+    assert not queue_file.exists()
+    leftovers = [p.name for p in tmp_path.iterdir() if not p.name.endswith(".lock")]
+    assert leftovers == []
+
+
+def test_enqueue_without_fcntl_falls_back_to_the_in_process_lock(tmp_path, monkeypatch):
+    """Non-POSIX platforms (no fcntl) keep working under the in-process mutex."""
+    queue_file = tmp_path / "dual_queue.json"
+    monkeypatch.setattr(uploader, "QUEUE_FILE", str(queue_file))
+    monkeypatch.setattr(uploader, "fcntl", None)
+    entry = uploader.enqueue_dual_upload("b.mp4", "m.json", "non-posix")
+    assert entry["status"] == "PENDING_DUAL_SYNC"
+    items = json.loads(queue_file.read_text(encoding="utf-8"))
+    assert len(items) == 1 and items[0]["video_path"] == "b.mp4"
