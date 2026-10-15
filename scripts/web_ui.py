@@ -17,6 +17,8 @@ import datetime
 import mimetypes
 import threading
 import hmac
+import secrets
+from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -35,11 +37,16 @@ STATE_FILE = os.path.join(LOG_DIR, "auto_state.json")
 CONTEXT_FILE = os.path.join(ROOT, "context.json")
 DELIVERABLES_DIR = os.path.join(ROOT, "deliverables")
 
-# Web UI access control. State-changing endpoints (/api/create, /api/maker/start,
-# /api/maker/stop, /api/config POST) are open to same-origin callers (the dashboard
-# itself, on localhost or over Wi-Fi) but require this token from everyone else
-# (cross-origin pages, LAN scripts, the public tunnel). Without it they fail closed.
+# Web UI access control. Every API endpoint and media file requires one of:
+# a SHORTS_UI_TOKEN header (X-Shorts-Token or 'Authorization: Bearer'), an
+# HttpOnly session cookie minted by POST /api/session in exchange for that
+# token (the dashboard's one-time login), or the request coming from the
+# machine itself (loopback source address AND a loopback Host). Browser
+# fetch metadata (Origin, Sec-Fetch-Site) is NOT accepted as proof of
+# anything: raw HTTP clients can forge both, so they never authorize.
 UI_TOKEN_ENV = "SHORTS_UI_TOKEN"
+SESSION_COOKIE = "shorts_session"
+SESSION_TTL_SECONDS = 30 * 24 * 3600
 
 
 def ui_token():
@@ -47,6 +54,50 @@ def ui_token():
     if not value or value.startswith(("your_", "mock_")):
         return None
     return value
+
+
+# In-memory dashboard sessions. POST /api/session trades SHORTS_UI_TOKEN for a
+# random HttpOnly cookie so the browser never holds the token in JS or storage.
+# Sessions live in this process only: restarting the web UI logs devices out.
+_SESSIONS = {}  # cookie value -> expiry epoch seconds
+_SESSIONS_LOCK = threading.Lock()
+_MAX_SESSIONS = 50
+
+
+def _issue_session() -> str:
+    value = secrets.token_urlsafe(32)
+    now = time.time()
+    with _SESSIONS_LOCK:
+        for key in [k for k, exp in _SESSIONS.items() if exp <= now]:
+            _SESSIONS.pop(key, None)
+        if len(_SESSIONS) >= _MAX_SESSIONS:
+            _SESSIONS.pop(min(_SESSIONS, key=_SESSIONS.get), None)
+        _SESSIONS[value] = now + SESSION_TTL_SECONDS
+    return value
+
+
+def _revoke_session(value: str) -> None:
+    if not value:
+        return
+    with _SESSIONS_LOCK:
+        for key in list(_SESSIONS):
+            if hmac.compare_digest(key, value):
+                _SESSIONS.pop(key, None)
+
+
+def _session_valid(value: str) -> bool:
+    if not value:
+        return False
+    now = time.time()
+    with _SESSIONS_LOCK:
+        for key, expiry in _SESSIONS.items():
+            if hmac.compare_digest(key, value):
+                if expiry > now:
+                    _SESSIONS[key] = now + SESSION_TTL_SECONDS  # sliding renewal
+                    return True
+                _SESSIONS.pop(key, None)
+                return False
+    return False
 
 CREATION_LOCK = threading.Lock()
 CREATION_STATE = {
@@ -115,11 +166,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # Keep stdout clean; suppress spammy GET polling
         pass
 
-    def send_json(self, data: dict, status: int = 200, head_only: bool = False):
+    def send_json(self, data: dict, status: int = 200, head_only: bool = False,
+                  extra_headers: dict = None):
         body = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self._apply_cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
@@ -128,10 +182,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def do_OPTIONS(self):
+        # CORS preflight is answered openly: it grants nothing by itself and
+        # carries no data, and the actual GET/POST that follows is still
+        # authenticated. Without this, a browser preflight for the
+        # X-Shorts-Token header from another origin (the Vercel app) would be
+        # refused and the authorized call could never be made.
         self.send_response(200)
-        self._apply_cors()
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "*")
+        origin = self.headers.get("Origin")
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE")
+        requested = (self.headers.get("Access-Control-Request-Headers") or "").strip()
+        self.send_header("Access-Control-Allow-Headers",
+                         requested or "Content-Type, X-Shorts-Token, Authorization, Bypass-Tunnel-Reminder")
         self.end_headers()
 
     def do_HEAD(self):
@@ -139,6 +203,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     # --- access control -----------------------------------------------------
     CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create")
+    LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
     def _host_bare(self) -> str:
         host = (self.headers.get("Host") or "").strip().lower()
@@ -149,8 +214,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return host[1:end] if end != -1 else host
         return host.rsplit(":", 1)[0]
 
+    def _loopback_client(self) -> bool:
+        try:
+            ip = (self.client_address[0] or "").strip()
+        except Exception:
+            return False
+        return ip == "::1" or ip.startswith("127.") or ip.startswith("::ffff:127.")
+
     def _local_host(self) -> bool:
-        return self._host_bare() in ("localhost", "127.0.0.1", "::1")
+        # The Host header alone is client-controlled: a LAN attacker can send
+        # "Host: localhost" verbatim. Loopback is required on the connection
+        # itself. The public tunnel also connects from 127.0.0.1 but carries
+        # the public Host name, so it stays "outside" and must authenticate.
+        return self._host_bare() in self.LOOPBACK_HOSTS and self._loopback_client()
 
     def _same_origin(self):
         """True/False when an Origin header is present; None when it is absent."""
@@ -162,26 +238,56 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except ValueError:
             return False
 
-    def _authorized(self) -> bool:
-        token = ui_token()
-        if not token:
+    def _session_cookie_value(self) -> str:
+        raw = self.headers.get("Cookie") or ""
+        try:
+            jar = SimpleCookie()
+            jar.load(raw)
+        except Exception:
+            return ""
+        morsel = jar.get(SESSION_COOKIE)
+        return morsel.value if morsel else ""
+
+    def _origin_host_mismatch(self) -> bool:
+        """True when the request carries an Origin that does not match the
+        Host it was sent to. Origin is never accepted AS authorization (raw
+        clients forge it), but a visible mismatch is evidence of a browser
+        drive-by (cross-site fetch/form from another website), so an
+        uncredentialed mismatched request is rejected outright. A matching
+        or absent Origin proves nothing and grants nothing."""
+        origin = self.headers.get("Origin")
+        if not origin:
             return False
+        try:
+            return urlparse(origin).netloc.lower() != (self.headers.get("Host") or "").strip().lower()
+        except ValueError:
+            return True
+
+    def _authorized(self) -> bool:
+        """One of three proofs: the machine itself (loopback client AND
+        loopback Host, and no cross-site Origin), the SHORTS_UI_TOKEN header
+        (X-Shorts-Token or Bearer), or a valid dashboard session cookie.
+        Origin and Sec-Fetch-Site never grant access on their own; a
+        mismatched Origin only adds a rejection for uncredentialed callers.
+        No token configured and no session means fail closed."""
         supplied = (self.headers.get("X-Shorts-Token") or "").strip()
         auth = (self.headers.get("Authorization") or "").strip()
         if auth.lower().startswith("bearer ") and not supplied:
             supplied = auth[7:].strip()
-        return hmac.compare_digest(supplied, token)
+        token = ui_token()
+        if token and supplied and hmac.compare_digest(supplied, token):
+            return True
+        if _session_valid(self._session_cookie_value()):
+            return True
+        if self._origin_host_mismatch():
+            return False
+        return self._local_host()
 
     def _control_allowed(self) -> bool:
-        """State-changing endpoints: same-origin is always fine; anything else
-        (a cross-origin page, a LAN script, the public tunnel) must send the
-        token from SHORTS_UI_TOKEN in .env. No token set means fail closed."""
-        same = self._same_origin()
-        if same:
-            return True
-        if same is False:
-            return self._authorized()
-        return self._local_host() or self._authorized()
+        """State-changing endpoints use the same proof as reads: token header,
+        dashboard session, or the machine itself. No same-origin or
+        Sec-Fetch shortcut: those headers are forgeable by raw clients."""
+        return self._authorized()
 
     def _cors_origin(self):
         """Echo the request Origin only for same-origin or authorized callers;
@@ -200,25 +306,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
     # Read endpoints that expose private state (config, logs, the deliverable
-    # list and the media files themselves) get the same protection as the
-    # state-changing ones: same-origin callers (the dashboard page itself) are
-    # fine, everyone else needs the SHORTS_UI_TOKEN. A same-origin browser
-    # fetch() or <video> request sends no Origin header, so it announces
-    # itself with the Sec-Fetch-Site header instead; direct navigation (no
-    # Origin, no Sec-Fetch-Site) and old browsers fall back to the
-    # local-host check or the token. Static assets stay public so the page
-    # itself always loads. The token never appears in responses or in the
-    # served page: it travels in request headers only.
+    # list and the media files themselves) use the same proof as the
+    # state-changing ones: SHORTS_UI_TOKEN header, dashboard session cookie,
+    # or the machine itself. Origin and Sec-Fetch-Site are deliberately NOT
+    # trusted: any raw HTTP client can forge both, and a forged pair once
+    # granted full read access through the public tunnel. The dashboard logs
+    # in once (POST /api/session with the token) and receives an HttpOnly
+    # cookie, so fetch() and <video> keep working without JS holding the
+    # token. Static assets stay public so the page itself always loads; the
+    # token never appears in responses, links, or the served page.
     def _read_allowed(self) -> bool:
-        same = self._same_origin()
-        if same:
-            return True
-        if same is False:
-            return self._authorized()
-        site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
-        if site == "same-origin":
-            return True
-        return self._local_host() or self._authorized()
+        return self._authorized()
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/session":
+            self.send_error(404, "Not Found")
+            return
+        if not self._authorized():
+            self.send_json({"status": "FAILED", "error": "Unauthorized."}, 401)
+            return
+        _revoke_session(self._session_cookie_value())
+        self.send_json({"status": "ok", "detail": "session closed"}, 200)
 
     def do_GET(self, head_only: bool = False):
         parsed = urlparse(self.path)
@@ -236,9 +345,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not self._read_allowed():
                 self.send_json({
                     "status": "FAILED",
-                    "error": ("Unauthorized. Reading status, logs, config, or media from outside this "
-                              "machine (tunnel, Wi-Fi device, or another website) requires SHORTS_UI_TOKEN "
-                              "in .env sent as the X-Shorts-Token header or 'Authorization: Bearer <token>'."),
+                    "error": ("Unauthorized. Sign in once on the dashboard with the SHORTS_UI_TOKEN "
+                              "(it sets a session cookie), or send that token from .env as the "
+                              "X-Shorts-Token header or 'Authorization: Bearer <token>'."),
                 }, 401, head_only=head_only)
                 return
             if path.startswith("/deliverables/"):
@@ -253,6 +362,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.handle_api_deliverables()
             elif path == "/api/config":
                 self.handle_api_get_config()
+            elif path == "/api/queue":
+                self.handle_api_queue()
             elif path == "/api/classify":
                 self.handle_api_classify(parsed)
             elif path == "/api/create/status":
@@ -270,12 +381,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         # Gate after the body is drained: rejecting earlier would close the
         # socket with unread request data, which sends a TCP reset that can
         # clobber the 401 response on the wire.
+        if path == "/api/session":
+            # The one-time login: it authenticates with the token itself, so
+            # it must be reachable before any session exists. CSRF-safe: a
+            # forged request without the real token is rejected inside.
+            try:
+                payload_session = json.loads(body) if body else {}
+            except Exception:
+                payload_session = {}
+            self.handle_api_session(payload_session)
+            return
         if path in DashboardHandler.CONTROL_PATHS and not self._control_allowed():
             self.send_json({
                 "status": "FAILED",
-                "error": ("Unauthorized. From outside this machine (tunnel, Wi-Fi device, or another "
-                          "website), set SHORTS_UI_TOKEN in .env and send it as the X-Shorts-Token "
-                          "header or 'Authorization: Bearer <token>'."),
+                "error": ("Unauthorized. Sign in once on the dashboard with the SHORTS_UI_TOKEN "
+                          "(it sets a session cookie), or send that token from .env as the "
+                          "X-Shorts-Token header or 'Authorization: Bearer <token>'."),
             }, 401)
             return
         try:
@@ -293,6 +414,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.handle_api_create(payload)
         else:
             self.send_error(404, "Not Found")
+
+    def handle_api_session(self, payload: dict):
+        """One-time dashboard login: trade SHORTS_UI_TOKEN for an HttpOnly
+        session cookie. The token is verified with a constant-time compare,
+        never echoed back, never logged, and never stored in JS or the page."""
+        supplied = str(payload.get("token") or "").strip()
+        token = ui_token()
+        if not token or not supplied or not hmac.compare_digest(supplied, token):
+            self.send_json({"status": "FAILED", "error": "Invalid access token."}, 401)
+            return
+        value = _issue_session()
+        cookie = (f"{SESSION_COOKIE}={value}; Path=/; Max-Age={SESSION_TTL_SECONDS}; "
+                  "HttpOnly; SameSite=Strict")
+        if (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https":
+            cookie += "; Secure"
+        self.send_json({"status": "ok", "detail": "session established"}, 200,
+                       extra_headers={"Set-Cookie": cookie})
+
+    def handle_api_queue(self):
+        """Read-only view of the dual-upload queue (diagnostics only; there is
+        no automatic drain, see README)."""
+        try:
+            from scripts.uploader import get_dual_queue
+            entries = get_dual_queue()
+        except Exception as exc:
+            entries = {"error": f"{type(exc).__name__}: queue unavailable"}
+        self.send_json({"status": "ok", "queue": entries}, 200)
 
     def handle_api_status(self):
         state = shortsctl.load_state()
