@@ -12,6 +12,11 @@ import json
 import uuid
 import argparse
 import logging
+import threading
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-Unix platforms fall back to the in-process lock
+    fcntl = None
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -186,43 +191,105 @@ def upload_to_youtube(
 QUEUE_FILE = os.path.join(ROOT, os.getenv("LOG_PATH", "logs"), "dual_queue.json")
 
 
-def enqueue_dual_upload(video_path: str, meta_path: str, reason: str = "") -> dict:
-    """Enqueues a deliverable for simultaneous upload to both YouTube & Instagram once quota frees."""
-    os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
-    items = []
-    if os.path.exists(QUEUE_FILE):
+_QUEUE_MUTEX = threading.Lock()  # serializes queue writers inside one process
+
+
+def _queue_backup_path() -> str:
+    return "%s.corrupt-%d" % (QUEUE_FILE, int(time.time() * 1000))
+
+
+def _read_queue_or_recover() -> list:
+    """Read the queue file for a WRITE. A corrupt file is preserved under a
+    .corrupt-<timestamp> name and treated as empty, so whatever can be
+    salvaged is never silently destroyed."""
+    if not os.path.exists(QUEUE_FILE):
+        return []
+    try:
+        with open(QUEUE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        backup = _queue_backup_path()
         try:
-            with open(QUEUE_FILE, encoding="utf-8") as f:
-                items = json.load(f)
-        except Exception:
-            items = []
+            os.replace(QUEUE_FILE, backup)
+            logger.warning("Queue file was corrupt: preserved it as %s and started a fresh queue.", os.path.basename(backup))
+        except OSError:
+            logger.warning("Queue file was corrupt and could not be backed up; starting a fresh queue.")
+        return []
 
-    # Prevent duplicate queue entries for the same video
-    for it in items:
-        if it.get("video_path") == video_path:
-            return it
 
-    entry = {
-        "id": f"queue_{int(time.time() * 1000)}",
-        "video_path": video_path,
-        "meta_path": meta_path,
-        "enqueued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "reason": reason,
-        "status": "PENDING_DUAL_SYNC"
-    }
-    items.append(entry)
-    with open(QUEUE_FILE, "w", encoding="utf-8") as f:
-        json.dump(items, f, indent=2)
-    logger.info("Enqueued for strict dual upload sync: %s (%s)", os.path.basename(video_path), reason)
-    return entry
+def _write_queue_atomic(items: list) -> None:
+    """Write the queue to a temp file in the same directory and atomically
+    replace the real file, so a crash mid-write can never leave a torn,
+    unreadable queue behind."""
+    tmp = "%s.tmp-%s-%d" % (QUEUE_FILE, os.getpid(), int(time.time() * 1000))
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, QUEUE_FILE)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def enqueue_dual_upload(video_path: str, meta_path: str, reason: str = "") -> dict:
+    """Enqueues a deliverable for simultaneous upload to both YouTube & Instagram once quota frees.
+
+    Safe against concurrent writers: the auto_run daemon and the web UI's
+    one-click creator run in separate processes and both append here, so the
+    read-modify-write is serialized with a cross-process file lock and the
+    write itself is atomic."""
+    os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
+    with _QUEUE_MUTEX:
+        lock_fd = None
+        if fcntl is not None:
+            try:
+                lock_fd = open(QUEUE_FILE + ".lock", "w")
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+            except OSError:
+                if lock_fd is not None:
+                    lock_fd.close()
+                lock_fd = None
+        try:
+            items = _read_queue_or_recover()
+            # Prevent duplicate queue entries for the same video
+            for it in items:
+                if it.get("video_path") == video_path:
+                    return it
+            entry = {
+                "id": f"queue_{int(time.time() * 1000)}",
+                "video_path": video_path,
+                "meta_path": meta_path,
+                "enqueued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "reason": reason,
+                "status": "PENDING_DUAL_SYNC"
+            }
+            items.append(entry)
+            _write_queue_atomic(items)
+            logger.info("Enqueued for strict dual upload sync: %s (%s)", os.path.basename(video_path), reason)
+            return entry
+        finally:
+            if lock_fd is not None:
+                try:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+                lock_fd.close()
 
 
 def get_dual_queue() -> list:
+    """Read-only view of the queue. A corrupt file is reported as empty and
+    left untouched (no backup, no rewrite): reads never mutate the queue."""
     if os.path.exists(QUEUE_FILE):
         try:
             with open(QUEUE_FILE, encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except (OSError, ValueError):
+            logger.warning("Queue file unreadable; reporting an empty queue and leaving the file untouched.")
             return []
     return []
 
