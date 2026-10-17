@@ -221,15 +221,19 @@ def _safe_run(mode, topic, args, config, publish_at, upload_enabled):
             )
             if ep_res.get("status") == "SUCCESS":
                 video_file = ep_res.get("video_file") or ep_res.get("video_path")
+                queue_reason = ep_res.get("queue_reason", "")
+                mode_str = "LOCAL_QUEUE" if queue_reason else "series"
                 return {
                     "status": "SUCCESS",
-                    "mode": "series",
+                    "mode": mode_str,
                     "deliverable_file": video_file,
                     "title": ep_res.get("title"),
                     "episode": ep_res.get("episode"),
                     "cliffhanger": ep_res.get("cliffhanger"),
                     "youtube_url": ep_res.get("youtube_url", ""),
                     "instagram_url": ep_res.get("instagram_url", ""),
+                    "queue_reason": queue_reason,
+                    "error": queue_reason,
                 }
             return {"status": "FAILED", "mode": "series", "error": ep_res.get("error", "Series generation failed")}
 

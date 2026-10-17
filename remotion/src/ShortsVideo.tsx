@@ -11,6 +11,7 @@ import {
 import { ShortsVideoProps } from './types';
 import { SceneRenderer } from './SceneRenderer';
 import { CaptionsOverlay } from './CaptionsOverlay';
+import { CharacterOverlay } from './CharacterOverlay';
 
 export const ShortsVideo: React.FC<ShortsVideoProps> = ({
   scenes,
@@ -26,6 +27,7 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
   chapterSubtitle,
   cliffhangerCta,
   logoSrc,
+  character,
   durationInFrames,
   useOriginalAudio = false,
 }) => {
@@ -54,6 +56,9 @@ export const ShortsVideo: React.FC<ShortsVideoProps> = ({
         style={style}
         useOriginalAudio={useOriginalAudio}
       />
+
+      {/* Consistent Character Visual Layer & Survivor HUD */}
+      <CharacterOverlay character={character} durationInFrames={durationInFrames} />
 
       {/* Ambient Soundscape Track (rain, ocean surf, forest wind ASMR) */}
       {ambientSrc ? (

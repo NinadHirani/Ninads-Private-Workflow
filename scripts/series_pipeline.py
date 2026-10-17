@@ -351,12 +351,34 @@ def produce_episode(
                 )
                 if yt_upload.get("status") == "SUCCESS":
                     notify("upload", "done", f"Uploaded to YouTube: {yt_upload.get('url')}")
+                    queue_reason = ""
                 else:
                     queue_reason = "YouTube daily quota reached" if yt_upload.get("status") == "QUOTA_EXCEEDED" else yt_upload.get("error", "YouTube upload failed")
                     enqueue_dual_upload(out_mp4, meta_json, reason=queue_reason)
                     notify("upload", "done", f"Preserved for dual upload: {queue_reason}")
+
+                # Publish to Instagram Reel
+                ig_upload = {}
+                try:
+                    notify("upload_instagram", "running", "Publishing series episode to Instagram Reel...")
+                    ig_upload = publish_instagram_video(
+                        out_mp4,
+                        title=serial_title,
+                        description=serial_desc,
+                        tags=["Kane", "Shorts", "Series", "Apocalypse", "Survival", "SciFi", "Story", "Cinematic"],
+                        on_progress=notify,
+                    )
+                    if ig_upload.get("status") == "SUCCESS":
+                        notify("upload_instagram", "done", f"Uploaded to Instagram: {ig_upload.get('instagram_url')}")
+                except Exception as ex_ig:
+                    logger.warning("Instagram upload step error: %s", redact(str(ex_ig)))
+
             except Exception as e:
                 logger.warning("Upload step error: %s", redact(str(e)))
+                queue_reason = str(e)
+        else:
+            queue_reason = ""
+            ig_upload = {}
 
         total_elapsed = round(time.time() - started, 2)
         logger.info("Successfully produced Episode #%d for series '%s' in %.1fs -> %s",
@@ -373,7 +395,9 @@ def produce_episode(
             "video_file": out_mp4,
             "video_path": out_mp4,
             "file_path": out_mp4,
-            "youtube_url": yt_upload.get("url", ""),
+            "youtube_url": yt_upload.get("url") or yt_upload.get("youtube_url", ""),
+            "instagram_url": ig_upload.get("instagram_url", ""),
+            "queue_reason": queue_reason,
             "metadata_file": meta_json,
             "duration_sec": render_res.get("duration_sec"),
             "elapsed_sec": total_elapsed,

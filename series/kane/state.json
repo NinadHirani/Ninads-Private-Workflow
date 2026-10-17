@@ -4,8 +4,8 @@
   "genre": "gritty_survival",
   "voice": "en-US-ChristopherNeural",
   "style": "cinematic",
-  "current_episode": 5,
-  "timeline_day": 7,
+  "current_episode": 7,
+  "timeline_day": 9,
   "current_era_index": 0,
   "character": {
     "name": "Kane",
@@ -50,7 +50,7 @@
     "weather": "Dense toxic ash fall, waning daylight",
     "threat": "Subterranean acoustic crawlers active in shadows"
   },
-  "last_cliffhanger": "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light.",
+  "last_cliffhanger": "Then the signal receiver beeped twice, and a voice from the static spoke his name.",
   "episode_history": [
     {
       "episode": 1,
@@ -91,8 +91,28 @@
       "cliffhanger": "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light.",
       "timestamp": "2026-10-17 16:40:08",
       "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep004_20261017_163349.mp4"
+    },
+    {
+      "episode": 5,
+      "day": 7,
+      "title": "Day 7: Dead Air",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "Then the signal receiver beeped twice, and a voice from the static spoke his name.",
+      "timestamp": "2026-10-17 16:53:46",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep005_20261017_164731.mp4"
+    },
+    {
+      "episode": 6,
+      "day": 8,
+      "title": "Day 8: The Chittering",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "Then the signal receiver beeped twice, and a voice from the static spoke his name.",
+      "timestamp": "2026-10-17 17:02:34",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep006_20261017_165558.mp4"
     }
   ],
   "created_at": "2026-10-17 14:38:22",
-  "updated_at": "2026-10-17 16:40:08"
+  "updated_at": "2026-10-17 17:02:34"
 }

@@ -13,6 +13,16 @@ export interface WordItem {
 
 export type VideoStyle = 'anime' | 'cinematic' | 'viral' | 'chill';
 
+export interface CharacterInfo {
+  name: string;
+  avatarSrc?: string;
+  fullBodySrc?: string;
+  condition?: string;
+  gear?: string;
+  day?: number;
+  mentalState?: string;
+}
+
 export interface ShortsVideoProps {
   scenes: SceneItem[];
   voiceoverSrc?: string;
@@ -27,6 +37,8 @@ export interface ShortsVideoProps {
   chapterSubtitle?: string;
   cliffhangerCta?: string;
   logoSrc?: string;
+  character?: CharacterInfo;
   durationInFrames: number;
   useOriginalAudio?: boolean;
 }
+
