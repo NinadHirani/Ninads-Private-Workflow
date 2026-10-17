@@ -18,6 +18,7 @@ tests/*.mp4
 *.mp3
 remotion/public/*
 !remotion/public/.gitkeep
+remotion/props_*.json
 logs/*.log
 logs/*.db
 logs/*.csv

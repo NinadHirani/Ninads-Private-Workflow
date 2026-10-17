@@ -1,0 +1,43 @@
+{
+  "series_id": "goliath",
+  "title": "Goliath: The Subterranean Beast",
+  "genre": "monster_odyssey",
+  "voice": "en-US-GuyNeural",
+  "style": "cinematic",
+  "current_episode": 1,
+  "timeline_day": 1,
+  "current_era_index": 0,
+  "character": {
+    "name": "Goliath",
+    "archetype": "ancient stone beast",
+    "visual_identity": "towering quad-horned stone golem beast with glowing amber magma veins pulsing through cracked granite hide, moss-covered rocky shoulders, glowing molten eyes, ancient runic carved markings",
+    "signature_gear": "chipped obsidian battle club, chest bound in massive iron chain link",
+    "physical_condition": "Right stone horn partially severed in ancient battle, immense brute mass",
+    "mental_state": "primordial intelligence, protective of subterranean wildlife, wary of surface human incursions"
+  },
+  "eras": [
+    {
+      "name": "Era 1: The Awakening",
+      "subtitle": "The Tremor",
+      "description": "Deep beneath the earth, tectonic fracking shatters Goliath's thousand-year slumber. He must navigate collapsing magma caverns and surface drilling rigs.",
+      "visual_palette": "subterranean magma orange, obsidian rock, glowing sulfur steam, colossal cave caverns",
+      "duration_episodes": 10
+    },
+    {
+      "name": "Era 2: The Surface Breach",
+      "subtitle": "The Lost Sun",
+      "description": "Goliath surfaces into a ruined human city overrun by mutant megafauna, claiming territory against rival apex titan predators.",
+      "visual_palette": "ruined overgrown skyscrapers, tangled roots, stormy twilight sky, titan scale perspective",
+      "duration_episodes": 15
+    }
+  ],
+  "world_state": {
+    "location": "Sector 4 Ruined Transit Hub",
+    "weather": "Dense toxic ash fall, waning daylight",
+    "threat": "Subterranean acoustic crawlers active in shadows"
+  },
+  "last_cliffhanger": null,
+  "episode_history": [],
+  "created_at": "2026-10-17 14:39:05",
+  "updated_at": "2026-10-17 14:39:05"
+}

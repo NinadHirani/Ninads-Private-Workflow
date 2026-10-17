@@ -82,6 +82,10 @@ def render_with_remotion(
     logo_src: str = None,
     fallback_text: str = "",
     use_original_audio: bool = False,
+    show_captions: bool = True,
+    episode_badge: str = None,
+    chapter_subtitle: str = None,
+    cliffhanger_cta: str = None,
     on_progress=None,
 ) -> dict:
     started = time.time()
@@ -186,7 +190,7 @@ def render_with_remotion(
         total_frames = sum(s["durationInFrames"] for s in processed_scenes)
         total_sec = total_frames / 30.0
 
-        clean_words = [] if use_original_audio else normalize_words(words or [], total_duration_sec=total_sec, fallback_text=fallback_text)
+        clean_words = [] if (use_original_audio or not show_captions) else normalize_words(words or [], total_duration_sec=total_sec, fallback_text=fallback_text)
 
         props = {
             "scenes": processed_scenes,
@@ -198,6 +202,9 @@ def render_with_remotion(
             "ambientVolume": ambient_volume,
             "style": style,
             "title": title,
+            "episodeBadge": episode_badge,
+            "chapterSubtitle": chapter_subtitle,
+            "cliffhangerCta": cliffhanger_cta,
             "logoSrc": logo_uri,
             "durationInFrames": max(30, total_frames),
             "useOriginalAudio": use_original_audio,

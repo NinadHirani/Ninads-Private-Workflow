@@ -2,1810 +2,840 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Shorts Factory | Mobile Studio & Control Center</title>
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Shorts Factory">
-  <meta name="theme-color" content="#090b10">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI Shorts Factory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#090d16">
   <style>
-    :root {
-      --bg: #090b10;
-      --card-bg: rgba(18, 24, 38, 0.75);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --accent-green: #10b981;
-      --accent-green-glow: rgba(16, 185, 129, 0.25);
-      --accent-red: #ef4444;
-      --accent-red-glow: rgba(239, 68, 68, 0.25);
-      --accent-blue: #3b82f6;
-      --accent-purple: #8b5cf6;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --radius-lg: 20px;
-      --radius-md: 14px;
-      --radius-sm: 8px;
-    }
-
-    * {
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.72);
+      --card-border: rgba(99, 102, 241, 0.22);
+      --card-hover-border: rgba(129, 140, 248, 0.45);
+      --primary: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+      --primary-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+      --stop-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      --accent: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Space Grotesk', monospace;
     }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #090d16 65%, #05070c 100%);
       color: var(--text);
+      font-family: var(--font);
       min-height: 100vh;
-      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 20px);
       display: flex;
       flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 20px 60px;
       overflow-x: hidden;
-      background-image: 
-        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 85% 90%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+      -webkit-font-smoothing: antialiased;
     }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0 16px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand-icon {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, #ef4444, #f59e0b);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
-    }
-
-    .brand-name {
-      font-size: 19px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #ffffff, #d1d5db);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--card-border);
-      transition: all 0.3s ease;
-    }
-
-    .status-badge.active {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.35);
-      color: #34d399;
-    }
-
-    .status-badge.stopped {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
+    /* Ambient background glowing orbs */
+    .glow-orb {
+      position: fixed;
       border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.35;
+    }
+    .orb-1 {
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      height: 300px;
+      background: #4f46e5;
+    }
+    .orb-2 {
+      bottom: -150px;
+      right: 10%;
+      width: 400px;
+      height: 350px;
+      background: #ec4899;
+      opacity: 0.2;
     }
 
-    .status-badge.active .status-dot {
-      background: #10b981;
-      box-shadow: 0 0 8px #10b981;
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
     }
 
-    .status-badge.stopped .status-dot {
-      background: #ef4444;
-      box-shadow: 0 0 8px #ef4444;
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 8px;
     }
 
-    /* PWA Install Button */
-    .btn-install {
+    .brand-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.25));
-      border: 1px solid rgba(139, 92, 246, 0.4);
-      color: #c4b5fd;
-      font-size: 12px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
       font-weight: 600;
+      color: #a5b4fc;
+      margin-bottom: 14px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .brand-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+    }
+
+    h1 {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      background: linear-gradient(180deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+      font-weight: 400;
+    }
+
+    /* Main Creation Card */
+    .studio-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px 28px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .studio-card:focus-within {
+      border-color: var(--card-hover-border);
+      box-shadow: 0 24px 60px rgba(99, 102, 241, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .input-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .input-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #cbd5e1;
+      letter-spacing: 0.3px;
+    }
+
+    .input-hint {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Topic Textarea */
+    .topic-textarea {
+      width: 100%;
+      min-height: 120px;
+      max-height: 260px;
+      background: rgba(10, 14, 26, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 18px 20px;
+      font-family: var(--font);
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+
+    .topic-textarea:focus {
+      border-color: #818cf8;
+      background: rgba(12, 17, 32, 0.9);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    .topic-textarea::placeholder {
+      color: #475569;
+    }
+
+    /* Quick Inspiration Chips */
+    .chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #94a3b8;
       cursor: pointer;
-      backdrop-filter: blur(10px);
+      user-select: none;
       transition: all 0.2s ease;
-      margin-left: 8px;
     }
-    .btn-install:active {
-      transform: scale(0.96);
+
+    .chip:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.35);
+      color: #e0e7ff;
+      transform: translateY(-1px);
     }
-    .btn-install.installed {
+
+    /* The Hero Start Button */
+    .btn-start {
+      width: 100%;
+      padding: 18px 28px;
+      border-radius: 16px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffffff;
+      background: var(--primary-gradient);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-start:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 35px rgba(99, 102, 241, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      background: var(--primary-hover);
+    }
+
+    .btn-start:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-start.btn-stop {
+      background: var(--stop-gradient) !important;
+      box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+    }
+
+    .btn-start.btn-stop:hover:not(:disabled) {
+      box-shadow: 0 15px 35px rgba(239, 68, 68, 0.55) !important;
+    }
+
+    .btn-start:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* Progress & Active Status Card */
+    .progress-card {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(20px);
+      animation: fadeIn 0.35s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-topic {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 75%;
+    }
+
+    .badge-status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .badge-status.done {
       background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-status.error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    /* Progress Bar */
+    .bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 15%;
+      background: var(--primary-gradient);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-detail {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Dynamic Archetype & Emotion Meta Badges */
+    .meta-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+    }
+
+    .tag.primary {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #c7d2fe;
+    }
+
+    /* Stepper List */
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+
+    .step-node {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      transition: all 0.25s ease;
+    }
+
+    .step-node.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: #6366f1;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .step-node.completed {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
       color: #34d399;
     }
 
-    /* Install Instructions Modal */
-    .install-modal {
+    /* Video Result Player */
+    .player-card {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(20px);
+      animation: fadeIn 0.4s ease;
+      text-align: center;
+    }
+
+    .video-wrap {
+      width: 100%;
+      max-width: 320px;
+      margin: 16px auto;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      aspect-ratio: 9 / 16;
+      background: #000;
+    }
+
+    .video-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      background: #10b981;
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      margin-top: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .download-btn:hover {
+      background: #059669;
+      transform: translateY(-1px);
+    }
+
+    /* Subtle Token Unlock Modal (only shown if server returns 401) */
+    .token-modal {
       display: none;
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(8px);
-      z-index: 9999;
+      backdrop-filter: blur(10px);
+      z-index: 100;
       align-items: center;
       justify-content: center;
       padding: 20px;
     }
-    .install-modal.open {
-      display: flex;
-    }
-    .install-dialog {
-      background: #111827;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
+    .token-box {
+      background: #121826;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 18px;
       padding: 24px;
-      max-width: 360px;
+      max-width: 400px;
       width: 100%;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    }
-    .modal-title {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-    .modal-desc {
-      font-size: 14px;
-      color: #9ca3af;
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-    .modal-step {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
-      font-size: 13px;
-      color: #e5e7eb;
-    }
-    .step-num {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #3b82f6;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 11px;
-      flex-shrink: 0;
-    }
-    .modal-btn-done {
-      width: 100%;
-      margin-top: 16px;
-      padding: 12px;
-      background: #3b82f6;
-      color: #fff;
-      font-weight: 600;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-    }
-
-    /* Navigation Tabs */
-    .tab-bar {
-      display: flex;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 4px;
-      margin-bottom: 16px;
-      backdrop-filter: blur(12px);
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 10px 0;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 600;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s ease;
       text-align: center;
     }
-
-    .tab-btn.active {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Content Area */
-    .tab-content {
-      display: none;
-      flex: 1;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    /* Studio Creator Card */
-    .studio-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 18px;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-
-    .studio-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-
-    .studio-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      letter-spacing: -0.3px;
-    }
-
-    .genre-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 14px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: #e5e7eb;
-      transition: all 0.3s ease;
-    }
-
-    .genre-badge.anime, .genre-badge.anime_scene {
-      background: rgba(234, 179, 8, 0.2);
-      border-color: rgba(234, 179, 8, 0.5);
-      color: #fde047;
-      box-shadow: 0 0 14px rgba(234, 179, 8, 0.25);
-    }
-
-    .genre-badge.movie, .genre-badge.movie_scene {
-      background: rgba(239, 68, 68, 0.2);
-      border-color: rgba(239, 68, 68, 0.5);
-      color: #fca5a5;
-      box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);
-    }
-
-    .genre-badge.gaming {
-      background: rgba(16, 185, 129, 0.2);
-      border-color: rgba(16, 185, 129, 0.5);
-      color: #34d399;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
-    }
-
-    .genre-badge.scifi_lore {
-      background: rgba(56, 189, 248, 0.2);
-      border-color: rgba(56, 189, 248, 0.5);
-      color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
-    }
-
-    .genre-badge.facts_mystery {
-      background: rgba(244, 114, 182, 0.2);
-      border-color: rgba(244, 114, 182, 0.5);
-      color: #f472b6;
-      box-shadow: 0 0 14px rgba(244, 114, 182, 0.25);
-    }
-
-    .genre-badge.nature {
-      background: rgba(52, 211, 153, 0.2);
-      border-color: rgba(52, 211, 153, 0.5);
-      color: #6ee7b7;
-      box-shadow: 0 0 14px rgba(52, 211, 153, 0.25);
-    }
-
-    .studio-input {
+    .token-input {
       width: 100%;
-      background: rgba(10, 14, 24, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: var(--radius-md);
-      padding: 15px 16px;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 500;
-      outline: none;
-      transition: all 0.2s ease;
-      margin-bottom: 12px;
-    }
-
-    .studio-input:focus {
-      border-color: #818cf8;
-      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
-    }
-
-    .chips-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      font-weight: 700;
-      margin-bottom: 6px;
-      letter-spacing: 0.5px;
-    }
-
-    .chips-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-bottom: 18px;
-    }
-
-    .chip {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 6px 12px;
-      font-size: 12px;
-      color: #cbd5e1;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      user-select: none;
-    }
-
-    .chip:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.22);
-    }
-
-    .options-row {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .opt-group {
-      flex: 1;
-    }
-
-    .opt-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      display: block;
-    }
-
-    .opt-select {
-      width: 100%;
-      background: rgba(10, 14, 24, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 12px;
+      background: #090d16;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 10px;
-      padding: 10px 12px;
       color: #fff;
-      font-size: 13px;
-      outline: none;
-    }
-
-    .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 18px;
-      font-size: 13px;
-      color: #e2e8f0;
-      cursor: pointer;
-    }
-
-    .btn-create-spark {
-      width: 100%;
-      padding: 17px;
-      border: none;
-      border-radius: var(--radius-md);
-      background: linear-gradient(135deg, #6366f1, #8b5cf6 60%, #ec4899);
-      color: #fff;
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-      cursor: pointer;
-      box-shadow: 0 4px 22px rgba(99, 102, 241, 0.45);
-      transition: all 0.25s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
-    .btn-create-spark:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 28px rgba(99, 102, 241, 0.6);
-    }
-
-    .btn-create-spark:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    /* Live Studio Progress Stepper */
-    .studio-progress-card {
-      display: none;
-      background: rgba(18, 24, 38, 0.95);
-      border: 1px solid rgba(99, 102, 241, 0.4);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-    }
-
-    .studio-progress-card.active {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .prog-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .prog-topic {
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .prog-badge {
-      font-size: 11px;
-      font-weight: 700;
-      color: #818cf8;
-      background: rgba(99, 102, 241, 0.15);
-      padding: 4px 10px;
-      border-radius: 12px;
-    }
-
-    .prog-bar-bg {
-      width: 100%;
-      height: 8px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 5px;
-      overflow: hidden;
-      margin: 12px 0;
-    }
-
-    .prog-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #6366f1, #10b981);
-      border-radius: 5px;
-      transition: width 0.4s ease;
-    }
-
-    .stepper-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .step-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 13px;
-      color: #94a3b8;
-    }
-
-    .step-item.current {
-      color: #fff;
-      font-weight: 600;
-    }
-
-    .step-item.done {
-      color: #34d399;
-    }
-
-    .step-indicator {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      flex-shrink: 0;
-    }
-
-    .step-item.current .step-indicator {
-      background: #6366f1;
-      color: #fff;
-      box-shadow: 0 0 10px #6366f1;
-      animation: pulse 1.5s infinite;
-    }
-
-    .step-item.done .step-indicator {
-      background: #10b981;
-      color: #fff;
-    }
-
-    /* Result Card */
-    .result-card {
-      display: none;
-      background: rgba(16, 185, 129, 0.09);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .result-card.active {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .result-player-wrapper {
-      border-radius: 14px;
-      overflow: hidden;
       margin: 14px 0;
-      background: #000;
-      aspect-ratio: 9 / 16;
-      max-height: 440px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .result-player {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* Hero Maker Card */
-    .hero-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 18px 20px;
-      backdrop-filter: blur(16px);
-      margin-bottom: 14px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .btn-toggle {
-      width: 100%;
-      padding: 15px;
-      border-radius: var(--radius-md);
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-toggle.start {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: #ffffff;
-      box-shadow: 0 6px 24px var(--accent-green-glow);
-    }
-
-    .btn-toggle.stop {
-      background: linear-gradient(135deg, #ef4444, #dc2626);
-      color: #ffffff;
-      box-shadow: 0 6px 24px var(--accent-red-glow);
-    }
-
-    .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .kpi-item {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: var(--radius-sm);
-      padding: 10px 8px;
-      text-align: center;
-    }
-
-    .kpi-num {
-      font-size: 20px;
-      font-weight: 800;
-      color: #fff;
-    }
-
-    .kpi-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      font-weight: 600;
-      margin-top: 2px;
-    }
-
-    /* Pipeline Tracker */
-    .pipeline-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px 18px;
-      backdrop-filter: blur(16px);
-      margin-bottom: 16px;
-    }
-
-    .pipeline-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .pipeline-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .pipeline-current-topic {
-      font-size: 12px;
-      color: #60a5fa;
-      font-weight: 600;
-      max-width: 60%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .pipeline-steps {
-      display: flex;
-      gap: 4px;
-      position: relative;
-    }
-
-    .pipe-step {
-      flex: 1;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 4px;
-      transition: all 0.3s ease;
-      position: relative;
-    }
-
-    .pipe-step.done {
-      background: #10b981;
-    }
-
-    .pipe-step.current {
-      background: #3b82f6;
-      box-shadow: 0 0 10px #3b82f6;
-      animation: pulse 1.5s infinite;
-    }
-
-    .pipeline-labels {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 8px;
-      font-size: 10px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .pipeline-detail {
-      font-size: 12px;
-      color: #d1d5db;
-      margin-top: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* Gallery */
-    .gallery-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding-bottom: 24px;
-    }
-
-    .video-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      backdrop-filter: blur(16px);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .video-preview-wrapper {
-      position: relative;
-      width: 100%;
-      background: #000;
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      aspect-ratio: 9 / 16;
-      max-height: 420px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .video-preview-wrapper video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .video-meta-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .video-topic {
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .video-duration {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    /* Terminal */
-    .terminal-card {
-      background: rgba(10, 14, 24, 0.95);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      color: #a7f3d0;
-      min-height: 320px;
-      max-height: 520px;
-      overflow-y: auto;
-      line-height: 1.6;
-    }
-
-    .terminal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .terminal-title {
-      font-size: 11px;
-      color: #94a3b8;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    /* Settings */
-    .settings-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      backdrop-filter: blur(16px);
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-
-    .form-textarea {
-      width: 100%;
-      height: 100px;
-      background: rgba(10, 14, 24, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: var(--radius-sm);
-      padding: 10px;
-      color: #fff;
-      font-size: 13px;
-      font-family: inherit;
-      resize: vertical;
       outline: none;
     }
 
-    .form-row {
-      display: flex;
-      gap: 12px;
-    }
-
-    .form-input, .form-select {
-      width: 100%;
-      background: rgba(10, 14, 24, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: var(--radius-sm);
-      padding: 10px;
-      color: #fff;
-      font-size: 13px;
-      outline: none;
-    }
-
-    .btn-save {
-      width: 100%;
-      padding: 12px;
-      background: #3b82f6;
-      border: none;
-      border-radius: var(--radius-sm);
-      color: #fff;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+    @media (max-width: 480px) {
+      body { padding: 24px 14px 40px; }
+      h1 { font-size: 30px; }
+      .studio-card { padding: 24px 18px; }
+      .stepper { grid-template-columns: repeat(3, 1fr); }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header>
-    <div class="brand">
-      <div class="brand-icon">⚡️</div>
-      <div class="brand-name">Shorts Factory</div>
-      <button id="installAppBtn" class="btn-install" onclick="handleInstallClick()">
-        <span>📲</span> <span id="installBtnText">Install App</span>
-      </button>
-    </div>
-    <div id="statusBadge" class="status-badge stopped">
-      <div class="status-dot"></div>
-      <span id="statusText">STOPPED</span>
-    </div>
-  </header>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
 
-  <!-- PWA Install Modal -->
-  <div id="installModal" class="install-modal" onclick="closeInstallModal(event)">
-    <div class="install-dialog" onclick="event.stopPropagation()">
-      <div class="modal-title">Install Shorts Factory</div>
-      <div class="modal-desc">Install this dashboard on your home screen for full-screen native access with one tap:</div>
-      <div class="modal-step">
-        <div class="step-num">1</div>
-        <div class="step-text">Tap the <strong>Share</strong> button (📤) in Safari or Chrome toolbar.</div>
+  <div class="container">
+    <header>
+      <div class="brand-badge">
+        <span class="dot"></span>
+        <span>AI Shorts Factory</span>
       </div>
-      <div class="modal-step">
-        <div class="step-num">2</div>
-        <div class="step-text">Scroll down and tap <strong>Add to Home Screen</strong> (➕).</div>
-      </div>
-      <div class="modal-step">
-        <div class="step-num">3</div>
-        <div class="step-text">Tap <strong>Add</strong> in the top right corner.</div>
-      </div>
-      <button class="modal-btn-done" onclick="closeInstallModal()">Got it</button>
-    </div>
-  </div>
+      <h1>Autonomous Studio</h1>
+      <p class="subtitle">Enter any topic. Backend handles script, voice, Remotion video & upload.</p>
+    </header>
 
-  <!-- Tabs Navigation -->
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('creator')">✨ Studio</button>
-    <button class="tab-btn" onclick="switchTab('deliverables')">📹 Shorts</button>
-    <button class="tab-btn" onclick="switchTab('autopilot')">🤖 Auto-Pilot</button>
-    <button class="tab-btn" onclick="switchTab('logs')">📜 Live Logs</button>
-    <button class="tab-btn" onclick="switchTab('settings')">⚙️ Settings</button>
-  </div>
-
-  <!-- TAB 1: CREATOR STUDIO (DEFAULT) -->
-  <div id="tab-creator" class="tab-content active">
-    <!-- Remote Setup Banner (hidden when backend is connected) -->
-    <div id="setupBanner" style="display:none; background:linear-gradient(135deg, rgba(99,102,241,0.18), rgba(236,72,153,0.14)); border:1px solid rgba(99,102,241,0.35); border-radius:16px; padding:18px 16px; margin-bottom:14px; text-align:center;">
-      <div style="font-size:24px; margin-bottom:6px;">📡</div>
-      <div style="font-size:15px; font-weight:700; color:#e2e8f0; margin-bottom:4px;">Mac Engine Standby</div>
-      <div style="font-size:12px; color:#94a3b8; line-height:1.5; margin-bottom:12px;">
-        Connecting to: <code id="bannerCurrentHost" style="color:#a5b4fc; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">https://ninad-shorts.loca.lt</code><br>
-        Make sure your Mac is running <code>python scripts/shortsctl.py tunnel</code>
-      </div>
-      <div style="display:flex; gap:6px; max-width:360px; margin:0 auto;">
-        <input id="quickConnectInput" type="text" placeholder="https://ninad-shorts.loca.lt" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:#e2e8f0; font-size:13px; outline:none;">
-        <button onclick="quickConnect()" style="padding:10px 14px; background:#6366f1; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Connect</button>
-      </div>
-      <div style="display:flex; justify-content:center; gap:8px; margin-top:10px;">
-        <button onclick="recheckConnection()" style="padding:6px 14px; background:rgba(255,255,255,0.06); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); border-radius:8px; font-size:12px; cursor:pointer;">🔄 Retry Connection</button>
-        <button onclick="useDefaultTunnel()" style="padding:6px 14px; background:rgba(99,102,241,0.15); color:#c7d2fe; border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-size:12px; cursor:pointer;">⚡️ Use Default Tunnel</button>
-      </div>
-      <div style="display:flex; gap:6px; max-width:360px; margin:10px auto 0;">
-        <input type="password" id="apiTokenInput" placeholder="Access token" autocomplete="off" style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.3); color:#e2e8f0; font-size:13px; outline:none;">
-        <button onclick="saveAccessToken()" style="padding:10px 14px; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Unlock</button>
-      </div>
-      <div style="font-size:11px; color:#94a3b8; margin-top:8px;">Paste the factory's access token once. It stays in this page only, never in browser storage, and is exchanged for a secure session cookie.</div>
-    </div>
+    <!-- Main Clean Creation Card: Topic Area + Start Button -->
     <div class="studio-card">
-      <div class="studio-header">
-        <div class="studio-title">
-          <span>⚡️</span> Instant Short Creator
-        </div>
-        <div id="detectedGenreBadge" class="genre-badge anime">
-          ⚡️ Anime Detected
-        </div>
+      <div class="input-label-row">
+        <label for="topicInput" class="input-label">Topic or Story Idea</label>
+        <span class="input-hint">English, Hindi or Hinglish</span>
       </div>
 
-      <input
-        id="studioTopicInput"
-        type="text"
-        class="studio-input"
-        placeholder="Type any word or topic: e.g. one-punch man anime..."
-        value="one-punch man anime"
-      />
+      <textarea
+        id="topicInput"
+        class="topic-textarea"
+        placeholder="Type any word, story idea, or topic...
+e.g. Marcus Aurelius on controlling your mind
+e.g. Dark psychological paradox about silence
+e.g. Bhai ye sunkar dimaag hil jayega"
+        autofocus
+      >Marcus Aurelius on controlling your mind</textarea>
 
-      <div class="chips-label">Quick Suggestions:</div>
-      <div class="chips-row">
-        <div class="chip" onclick="setStudioTopic('Saitama vs Boros fight scene')">🔥 Saitama Fight Scene</div>
-        <div class="chip" onclick="setStudioTopic('Batman interrogation movie scene')">🎬 Batman Movie Scene</div>
-        <div class="chip" onclick="setStudioTopic('one-punch man anime lore')">🥊 Anime Lore (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('stoic mindset under pressure')">🏛️ Stoic Wisdom (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('dark matter space paradox')">🌌 Cosmic Mystery (AI VO)</div>
-        <div class="chip" onclick="setStudioTopic('aurora borealis northern lights')">✨ Nature ASMR</div>
+      <!-- Quick Inspiration Pills -->
+      <div class="chips-wrap">
+        <div class="chip" onclick="setTopic('Marcus Aurelius on controlling your mind')">🏛️ Stoic Mindset</div>
+        <div class="chip" onclick="setTopic('The psychological paradox of silence')">🧠 Dark Psychology</div>
+        <div class="chip" onclick="setTopic('Bhai ye sunkar dimaag hil jayega')">🔥 Desi Brainrot</div>
+        <div class="chip" onclick="setTopic('How AI will change human memory forever')">🤖 Future AI</div>
+        <div class="chip" onclick="setTopic('Saitama vs Boros epic anime lore')">🥊 Anime Lore</div>
       </div>
 
-      <div class="options-row">
-        <div class="opt-group" style="flex:1;">
-          <label class="opt-label">Duration</label>
-          <select id="studioDuration" class="opt-select">
-            <option value="30">30 Seconds</option>
-            <option value="45" selected>45 Seconds (Optimal)</option>
-            <option value="60">60 Seconds</option>
-          </select>
-        </div>
-      </div>
-
-      <label class="checkbox-row">
-        <input type="checkbox" id="studioAutoUpload" checked />
-        <span>Auto-upload to YouTube Shorts & Instagram upon Remotion render</span>
-      </label>
-
-      <button id="btnCreateShort" class="btn-create-spark" onclick="triggerCreateShort()">
-        <span>🚀</span> <span>Create Short with Remotion</span>
+      <!-- The Hero Start Button -->
+      <button id="btnStart" class="btn-start" onclick="toggleCreation()">
+        <span id="btnIcon">⚡️</span>
+        <span id="btnText">Start Creation</span>
       </button>
     </div>
 
-    <!-- Active Generation Stepper -->
-    <div id="studioProgressCard" class="studio-progress-card">
-      <div class="prog-header">
-        <div id="progTopicTitle" class="prog-topic">Generating Short...</div>
-        <div id="progStatusLabel" class="prog-badge">IN PROGRESS</div>
+    <!-- Live Execution Status Card -->
+    <div id="progressCard" class="progress-card">
+      <div class="progress-header">
+        <div id="progTopic" class="progress-topic">Generating Short...</div>
+        <div id="progStatus" class="badge-status">In Progress</div>
       </div>
-      <div class="prog-bar-bg">
-        <div id="progBarFill" class="prog-bar-fill"></div>
-      </div>
-      <div id="progDetailText" style="font-size:12px; color:#cbd5e1; margin-bottom:12px;">Initializing...</div>
 
-      <div class="stepper-list">
-        <div id="step-genre" class="step-item current">
-          <div class="step-indicator">1</div>
-          <span>Genre & Story Angle Classification</span>
-        </div>
-        <div id="step-script-ui" class="step-item">
-          <div class="step-indicator">2</div>
-          <span>High-Retention AI Script</span>
-        </div>
-        <div id="step-voice" class="step-item">
-          <div class="step-indicator">3</div>
-          <span>Neural Edge-TTS Voiceover</span>
-        </div>
-        <div id="step-scenes-ui" class="step-item">
-          <div class="step-indicator">4</div>
-          <span>1080x1920 AI Visual Scenes</span>
-        </div>
-        <div id="step-render-ui" class="step-item">
-          <div class="step-indicator">5</div>
-          <span>Remotion Engine 1080x1920 Render</span>
-        </div>
-        <div id="step-upload-ui" class="step-item">
-          <div class="step-indicator">6</div>
-          <span>YouTube & Instagram Direct Upload</span>
-        </div>
+      <div class="bar-bg">
+        <div id="barFill" class="bar-fill"></div>
+      </div>
+
+      <div id="progDetail" class="progress-detail">
+        <span>⚙️</span>
+        <span id="detailText">Initializing backend pipeline...</span>
+      </div>
+
+      <div id="metaTags" class="meta-tags">
+        <!-- Badges dynamically inserted here -->
+      </div>
+
+      <div class="stepper">
+        <div id="step-classify" class="step-node active">1. Concept</div>
+        <div id="step-script" class="step-node">2. Script</div>
+        <div id="step-voiceover" class="step-node">3. Voiceover</div>
+        <div id="step-scenes" class="step-node">4. Visuals</div>
+        <div id="step-edit" class="step-node">5. Remotion</div>
       </div>
     </div>
 
-    <!-- Completed Video Result Card -->
-    <div id="studioResultCard" class="result-card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:16px; font-weight:800; color:#34d399;">🎉 Short Ready & Published!</span>
-        <button onclick="resetStudio()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:13px; font-weight:600;">Create Another</button>
+    <!-- Completed Video Player Card -->
+    <div id="playerCard" class="player-card">
+      <div style="font-size: 18px; font-weight: 700; color: #34d399; margin-bottom: 4px;">🎉 Short Created Successfully!</div>
+      <div id="playerTopic" style="font-size: 13px; color: #94a3b8;"></div>
+
+      <div class="video-wrap">
+        <video id="shortVideo" controls playsinline></video>
       </div>
 
-      <div class="result-player-wrapper">
-        <video id="resultVideoPlayer" class="result-player" controls playsinline></video>
-      </div>
-
-      <div id="resultMetaInfo" style="font-size:13px; color:#e2e8f0; line-height:1.5;"></div>
-    </div>
-  </div>
-
-  <!-- TAB 2: DELIVERABLES GALLERY -->
-  <div id="tab-deliverables" class="tab-content">
-    <div id="galleryList" class="gallery-list">
-      <div class="empty-state">Loading generated Shorts...</div>
-    </div>
-  </div>
-
-  <!-- TAB 3: AUTO-PILOT MAKER -->
-  <div id="tab-autopilot" class="tab-content">
-    <div class="hero-card">
-      <button id="toggleBtn" class="btn-toggle start" onclick="toggleMaker()">
-        ▶ Start Auto-Pilot Maker
-      </button>
-      <div class="kpi-row">
-        <div class="kpi-item">
-          <div id="todayCount" class="kpi-num">0</div>
-          <div class="kpi-label">Today</div>
-        </div>
-        <div class="kpi-item">
-          <div id="totalCount" class="kpi-num">0</div>
-          <div class="kpi-label">Total</div>
-        </div>
-        <div class="kpi-item">
-          <div id="modePill" class="kpi-num" style="font-size: 15px; padding-top: 6px;">REMOTION</div>
-          <div class="kpi-label">Engine</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="pipeline-card">
-      <div class="pipeline-header">
-        <span class="pipeline-title">Live Pipeline</span>
-        <span id="currentTopic" class="pipeline-current-topic">Idle</span>
-      </div>
-      <div class="pipeline-steps">
-        <div id="step-script" class="pipe-step"></div>
-        <div id="step-captions" class="pipe-step"></div>
-        <div id="step-clips" class="pipe-step"></div>
-        <div id="step-render" class="pipe-step"></div>
-        <div id="step-upload" class="pipe-step"></div>
-      </div>
-      <div class="pipeline-labels">
-        <span>Script</span>
-        <span>Audio</span>
-        <span>Visuals</span>
-        <span>Remotion</span>
-        <span>Upload</span>
-      </div>
-      <div id="pipelineDetail" class="pipeline-detail">
-        <span>●</span> <span>Maker is idle</span>
+      <div>
+        <a id="downloadLink" class="download-btn" href="#" download>
+          <span>📥</span> Download 1080x1920 Video
+        </a>
       </div>
     </div>
   </div>
 
-  <!-- TAB 4: LIVE LOGS -->
-  <div id="tab-logs" class="tab-content">
-    <div class="terminal-card">
-      <div class="terminal-header">
-        <span class="terminal-title">Console Output (auto.log)</span>
-        <button onclick="fetchLogs()" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:12px;">Refresh</button>
-      </div>
-      <div id="terminalBody" class="terminal-body">Connecting to logs...</div>
-    </div>
-  </div>
-
-  <!-- TAB 5: SETTINGS -->
-  <div id="tab-settings" class="tab-content">
-    <div class="settings-card">
-      <div class="form-group">
-        <label class="form-label">Auto-Pilot Topics (One per line)</label>
-        <textarea id="topicsInput" class="form-textarea" placeholder="one-punch man anime&#10;dark matter mystery&#10;cyberpunk city"></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Gap Minutes</label>
-          <input id="gapInput" type="number" class="form-input" min="0" max="60" value="1">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Duration (sec)</label>
-          <input id="durationInput" type="number" class="form-input" min="10" max="60" value="45">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Upload Destination</label>
-        <select id="uploadInput" class="form-select">
-          <option value="true">YouTube & Instagram (Direct Publish)</option>
-          <option value="false">Local Deliverables Only</option>
-        </select>
-      </div>
-      <button class="btn-save" onclick="saveSettings()">Save Settings</button>
-
-      <div class="form-group" style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--card-border);">
-        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>⚡ Mac Factory Host</span>
-          <span id="connStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(255,255,255,0.06); color:#9ca3af;">Checking...</span>
-        </label>
-        <input id="apiBaseInput" type="text" class="form-input" placeholder="e.g. https://your-tunnel.loca.lt or http://10.83.93.253:8088">
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <button type="button" class="btn-save" style="flex:1; padding:8px 12px; font-size:13px; background:#4f46e5;" onclick="saveApiBase()">Connect Host</button>
-          <button type="button" class="btn-save" style="background:rgba(255,255,255,0.08); padding:8px 12px; font-size:13px;" onclick="resetApiBase()">Reset Local</button>
-          <button type="button" class="btn-save" style="background:rgba(239,68,68,0.12); padding:8px 12px; font-size:13px; color:#f87171;" onclick="logoutSession()">Log Out</button>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-          When opening on Vercel via cellular/mobile, run <code>python scripts/shortsctl.py tunnel</code> on your Mac and paste the HTTPS URL here.
-        </div>
-      </div>
+  <!-- Token Modal (Shown only if server explicitly requests auth) -->
+  <div id="tokenModal" class="token-modal">
+    <div class="token-box">
+      <h3 style="margin-bottom: 8px;">Unlock Studio</h3>
+      <p style="font-size: 13px; color: #94a3b8;">Paste access token to control creation.</p>
+      <input type="password" id="tokenField" class="token-input" placeholder="Access token" />
+      <button onclick="establishSession()" class="btn-start" style="padding: 12px;">Unlock</button>
     </div>
   </div>
 
   <script>
-    // Remote / Local API Gateway
-    const DEFAULT_REMOTE_BACKEND = 'https://ninad-shorts.loca.lt';
-    let apiBase = localStorage.getItem('shorts_factory_api_base');
-    const isRemoteHost = location.hostname.includes('vercel.app') || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
-
-    if (isRemoteHost) {
-      if (!apiBase || (location.protocol === 'https:' && apiBase.startsWith('http://'))) {
-        apiBase = DEFAULT_REMOTE_BACKEND;
-        localStorage.setItem('shorts_factory_api_base', apiBase);
-      }
-    } else if (apiBase === null) {
-      apiBase = '';
-    }
-
-    function apiUrl(path) {
-      if (!apiBase) return path;
-      return apiBase.replace(/\/+$/, '') + path;
-    }
-
-    // Access token: entered once and kept ONLY in this page's memory (never
-    // written to browser storage), then exchanged for a secure session cookie.
-    // Closing the tab forgets it. It is never embedded in the app files.
+    let isRunning = false;
+    let pollInterval = null;
     let pageToken = '';
-    function savedToken() { return pageToken; }
 
-    function getCookie(name) {
-      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-      return m ? decodeURIComponent(m[1]) : '';
-    }
-
-    function apiHeaders() {
-      const h = { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' };
-      const tok = savedToken();
-      if (tok) h['X-Shorts-Token'] = tok;
-      return h;
-    }
-
-    async function establishSession() {
-      const tok = savedToken();
-      if (!tok) return false;
-      try {
-        const r = await fetch(apiUrl('/api/session'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
-          body: JSON.stringify({ token: tok })
-        });
-        return r.ok;
-      } catch (e) { return false; }
+    function setTopic(text) {
+      const el = document.getElementById('topicInput');
+      el.value = text;
+      el.focus();
     }
 
     async function apiFetch(path, options = {}) {
-      const headers = Object.assign(apiHeaders(), options.headers || {});
-      const r = await fetch(apiUrl(path), Object.assign({}, options, { headers, credentials: 'include' }));
-      if (r.status === 401) {
-        const banner = document.getElementById('setupBanner');
-        if (banner) { banner.style.display = 'block'; }
-        throw new Error('locked');
+      const headers = options.headers || {};
+      if (pageToken) {
+        headers['X-Shorts-Token'] = pageToken;
       }
-      return r;
+      options.headers = headers;
+      const res = await fetch(path, options);
+      if (res.status === 401) {
+        document.getElementById('tokenModal').style.display = 'flex';
+      }
+      return res;
     }
 
-    async function saveAccessToken() {
-      const el = document.getElementById('apiTokenInput');
-      if (!el) return;
-      const val = el.value.trim();
+    async function establishSession() {
+      const val = document.getElementById('tokenField').value.trim();
+      if (!val) return;
       pageToken = val;
-      el.value = '';
-      const ok = await establishSession();
-      if (ok) {
-        alert(val ? 'Access token saved for this visit. It is not stored.' : 'Access token cleared.');
-        checkConnectionHealth();
-        fetchStatus();
-        fetchDeliverables();
-      } else {
-        alert('That token was rejected. Check the access token set in the factory .env and try again.');
-      }
-    }
-
-    async function logoutSession() {
-      try { await apiFetch('/api/session', { method: 'DELETE' }); } catch (e) {}
-      pageToken = '';
-      alert('Logged out. Enter the token again to reconnect.');
-      checkConnectionHealth();
-    }
-
-    async function loadVideoInto(videoEl, path) {
-      const url = apiUrl(path);
-      if (url.startsWith(location.origin)) { videoEl.src = url; return; }
-      // Cross-origin (Vercel app): a plain <video> tag cannot send the token
-      // header or the session cookie, so fetch with credentials and play the blob.
-      try {
-        const r = await fetch(url, { headers: apiHeaders(), credentials: 'include' });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        videoEl.src = URL.createObjectURL(await r.blob());
-      } catch (e) {
-        videoEl.src = url;
-      }
-    }
-
-    function saveApiBase() {
-      const val = document.getElementById('apiBaseInput').value.trim();
-      localStorage.setItem('shorts_factory_api_base', val);
-      apiBase = val;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      updateSetupBanner();
-      alert(val ? 'Host configured! Connected to ' + val : 'Reset to local origin.');
-    }
-
-    function resetApiBase() {
-      localStorage.removeItem('shorts_factory_api_base');
-      apiBase = isRemoteHost ? DEFAULT_REMOTE_BACKEND : '';
-      if (apiBase) localStorage.setItem('shorts_factory_api_base', apiBase);
-      document.getElementById('apiBaseInput').value = apiBase;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      updateSetupBanner();
-      alert(apiBase ? 'Reset to default tunnel: ' + apiBase : 'Reset to local origin.');
-    }
-
-    async function checkConnectionHealth() {
-      const badge = document.getElementById('connStatusBadge');
-      const banner = document.getElementById('setupBanner');
-      const bannerHost = document.getElementById('bannerCurrentHost');
-      if (bannerHost) bannerHost.innerText = apiBase || 'No endpoint configured';
-      try {
-        const res = await apiFetch('/api/status');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (badge) {
-          badge.style.background = 'rgba(16, 185, 129, 0.15)';
-          badge.style.color = '#34d399';
-          badge.innerText = `Connected (${data.running ? 'PID ' + data.pid : 'Standby'})`;
-        }
-        if (banner) banner.style.display = 'none';
-        return true;
-      } catch (e) {
-        if (badge) {
-          badge.style.background = 'rgba(239, 68, 68, 0.15)';
-          badge.style.color = '#f87171';
-          badge.innerText = 'Offline / Standby';
-        }
-        if (banner && isRemoteHost) {
-          banner.style.display = 'block';
-        }
-        return false;
-      }
-    }
-
-    // PWA & Installation Handling
-    let deferredPrompt = null;
-    const installBtn = document.getElementById('installAppBtn');
-    const installBtnText = document.getElementById('installBtnText');
-    const installModal = document.getElementById('installModal');
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(console.warn);
+      const res = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: val })
       });
-    }
-
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (isStandalone && installBtn) {
-      installBtn.classList.add('installed');
-      if (installBtnText) installBtnText.innerText = 'App Installed';
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      if (installBtn && !isStandalone) installBtn.style.display = 'inline-flex';
-    });
-
-    window.addEventListener('appinstalled', () => {
-      deferredPrompt = null;
-      if (installBtn) {
-        installBtn.classList.add('installed');
-        if (installBtnText) installBtnText.innerText = 'App Installed';
-      }
-    });
-
-    async function handleInstallClick() {
-      if (isStandalone) {
-        alert('Shorts Factory is already running as an installed shortcut app!');
-        return;
-      }
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (choice && choice.outcome === 'accepted') {
-          if (installBtn) installBtn.classList.add('installed');
-          deferredPrompt = null;
-        }
+      if (res.ok) {
+        document.getElementById('tokenModal').style.display = 'none';
+        toggleCreation();
       } else {
-        openInstallModal();
+        alert('Invalid access token');
       }
     }
 
-    function openInstallModal() {
-      if (installModal) installModal.classList.add('open');
-    }
-
-    function closeInstallModal(e) {
-      if (e && e.target !== installModal) return;
-      if (installModal) installModal.classList.remove('open');
-    }
-
-    let isMakerRunning = false;
-    let autoScrollLogs = true;
-    let isCreatingShort = false;
-
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.toLowerCase().includes(tabId.slice(0, 4)));
-      if (targetBtn) targetBtn.classList.add('active');
-      
-      const targetContent = document.getElementById('tab-' + tabId);
-      if (targetContent) targetContent.classList.add('active');
-
-      if (tabId === 'logs') fetchLogs();
-      if (tabId === 'deliverables') fetchDeliverables();
-      if (tabId === 'settings') fetchSettings();
-    }
-
-    // Live Genre Auto-Detection on Topic Input
-    const studioInput = document.getElementById('studioTopicInput');
-    const genreBadge = document.getElementById('detectedGenreBadge');
-
-    let classifyDebounce = null;
-    studioInput.addEventListener('input', () => {
-      clearTimeout(classifyDebounce);
-      classifyDebounce = setTimeout(updateGenreClassification, 250);
-    });
-
-    async function updateGenreClassification() {
-      const topic = studioInput.value.trim();
-      if (!topic) {
-        genreBadge.className = 'genre-badge';
-        genreBadge.innerText = 'Topic Required';
+    async function toggleCreation() {
+      if (isRunning) {
+        // Stop request
+        const btn = document.getElementById('btnStart');
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span><span>Stopping...</span>';
+        await apiFetch('/api/create/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        });
         return;
       }
-      try {
-        const res = await apiFetch('/api/classify?topic=' + encodeURIComponent(topic));
-        const data = await res.json();
-        genreBadge.className = 'genre-badge ' + (data.category || 'general');
-        const icon = (data.category || '').includes('anime') ? '⚡️' : (data.category || '').includes('movie') ? '🎬' : data.category === 'gaming' ? '🎮' : data.category === 'scifi_lore' ? '🌌' : data.category === 'nature' ? '🌿' : '💡';
-        const modeLabel = data.audio_mode === 'original_voice'
-          ? '🎬 ORIGINAL SCENE VOICE'
-          : data.audio_mode === 'nature_asmr'
-          ? '🌿 ASMR SOUNDSCAPE'
-          : '🎙️ AI SCRIPT + VO';
-        genreBadge.innerText = `${icon} ${data.category.toUpperCase().replace('_', ' ')} • ${modeLabel}`;
-      } catch (e) {}
-    }
 
-    function setStudioTopic(topic) {
-      studioInput.value = topic;
-      updateGenreClassification();
-    }
+      const topicInput = document.getElementById('topicInput');
+      const topic = topicInput.value.trim();
+      if (!topic) {
+        alert('Please enter a topic or story idea');
+        topicInput.focus();
+        return;
+      }
 
-    // Trigger 1-Click Short Creation
-    async function triggerCreateShort() {
-      const topic = studioInput.value.trim();
-      if (!topic) return alert('Please enter a topic or keyword!');
+      const btn = document.getElementById('btnStart');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span><span>Starting Backend...</span>';
 
-      const duration = parseInt(document.getElementById('studioDuration').value || 45);
-      const privacy = 'public';
-      const autoUpload = document.getElementById('studioAutoUpload').checked;
+      document.getElementById('progressCard').style.display = 'block';
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('progTopic').textContent = topic;
+      document.getElementById('progStatus').textContent = 'In Progress';
+      document.getElementById('progStatus').className = 'badge-status';
 
-      const createBtn = document.getElementById('btnCreateShort');
-      createBtn.disabled = true;
-      createBtn.innerHTML = '<span>⏳</span> <span>Generating Video...</span>';
-
-      const progressCard = document.getElementById('studioProgressCard');
-      progressCard.classList.add('active');
-      document.getElementById('progTopicTitle').innerText = topic;
-      document.getElementById('studioResultCard').classList.remove('active');
+      resetStepper();
 
       try {
         const res = await apiFetch('/api/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic,
-            duration,
-            privacy,
-            upload: autoUpload,
-          }),
+          body: JSON.stringify({ topic: topic, continuous: false })
         });
-        const data = await res.json();
-        if (data.status === 'STARTED') {
-          isCreatingShort = true;
-          pollCreationProgress();
+
+        if (res.ok) {
+          isRunning = true;
+          updateButtonState(true);
+          startPolling();
         } else {
-          alert('Error starting generation: ' + (data.error || 'Unknown'));
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-          progressCard.classList.remove('active');
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to start creation');
+          updateButtonState(false);
         }
-      } catch (err) {
-        const isRemote = location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && !location.hostname.startsWith('192.');
-        if (isRemote && !apiBase) {
-          if (confirm('⚠️ No backend connected!\n\nYour Mac\'s Shorts Factory server isn\'t linked yet. Go to Settings to enter your Mac\'s IP address?')) {
-            switchTab('settings');
-            setTimeout(() => document.getElementById('apiBaseInput')?.focus(), 300);
-          }
-        } else {
-          alert('Cannot reach backend: ' + err.message + '\n\nMake sure your Mac server is running (python scripts/shortsctl.py service restart).');
-        }
-        createBtn.disabled = false;
-        createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-        progressCard.classList.remove('active');
+      } catch (e) {
+        alert('Connection error: ' + e.message);
+        updateButtonState(false);
+      } finally {
+        btn.disabled = false;
       }
     }
 
-    // Poll Progress of Creation
-    async function pollCreationProgress() {
-      if (!isCreatingShort) return;
+    function updateButtonState(running) {
+      const btn = document.getElementById('btnStart');
+      if (running) {
+        btn.classList.add('btn-stop');
+        btn.innerHTML = '<span>⏹</span><span>Stop Creation</span>';
+      } else {
+        btn.classList.remove('btn-stop');
+        btn.innerHTML = '<span>⚡️</span><span>Start Creation</span>';
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(pollStatus, 1500);
+      pollStatus();
+    }
+
+    async function pollStatus() {
       try {
         const res = await apiFetch('/api/create/status');
+        if (!res.ok) return;
         const state = await res.json();
 
-        const barFill = document.getElementById('progBarFill');
-        const detailText = document.getElementById('progDetailText');
-        const statusLabel = document.getElementById('progStatusLabel');
+        if (state.topic) {
+          document.getElementById('progTopic').textContent = state.topic;
+        }
 
-        detailText.innerText = state.detail || state.step || 'Processing...';
+        if (state.detail) {
+          document.getElementById('detailText').textContent = state.detail;
+        }
 
-        // Step highlights
-        const steps = ['genre', 'script-ui', 'voice', 'scenes-ui', 'render-ui', 'upload-ui'];
-        let progressPercent = 10;
-        let activeIdx = 0;
+        updateStepper(state.step);
 
-        if (state.step === 'classify') { activeIdx = 0; progressPercent = 15; }
-        else if (state.step === 'script') { activeIdx = 1; progressPercent = 30; }
-        else if (state.step === 'voiceover') { activeIdx = 2; progressPercent = 45; }
-        else if (state.step === 'scenes') { activeIdx = 3; progressPercent = 65; }
-        else if (state.step === 'edit' || state.step === 'render') { activeIdx = 4; progressPercent = 85; }
-        else if (state.step === 'upload' || state.step === 'upload_instagram') { activeIdx = 5; progressPercent = 95; }
+        // Update Dynamic Archetype / Emotion Badges if available
+        if (state.result && state.result.steps && state.result.steps.script) {
+          const sc = state.result.steps.script;
+          const tagsDiv = document.getElementById('metaTags');
+          tagsDiv.innerHTML = '';
+          if (sc.archetype) tagsDiv.innerHTML += `<span class="tag primary">Archetype: ${sc.archetype}</span>`;
+          if (sc.emotion) tagsDiv.innerHTML += `<span class="tag">Tone: ${sc.emotion}</span>`;
+          if (sc.language) tagsDiv.innerHTML += `<span class="tag">Lang: ${sc.language}</span>`;
+          if (sc.writer) tagsDiv.innerHTML += `<span class="tag">AI: ${sc.writer}</span>`;
+        }
 
-        barFill.style.width = progressPercent + '%';
-
-        steps.forEach((s, idx) => {
-          const el = document.getElementById('step-' + s);
-          if (el) {
-            el.className = 'step-item ' + (idx < activeIdx ? 'done' : idx === activeIdx ? 'current' : '');
-          }
-        });
-
+        // Check if finished
         if (!state.active) {
-          isCreatingShort = false;
-          const createBtn = document.getElementById('btnCreateShort');
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
+          clearInterval(pollInterval);
+          isRunning = false;
+          updateButtonState(false);
 
-          if (state.status === 'done' && state.result) {
-            barFill.style.width = '100%';
-            statusLabel.innerText = 'COMPLETED';
-            statusLabel.style.color = '#34d399';
-            steps.forEach(s => {
-              const el = document.getElementById('step-' + s);
-              if (el) el.className = 'step-item done';
-            });
+          if (state.status === 'done' || (state.result && state.result.status === 'SUCCESS')) {
+            document.getElementById('progStatus').textContent = 'Completed';
+            document.getElementById('progStatus').className = 'badge-status done';
+            document.getElementById('barFill').style.width = '100%';
 
-            // Show result card
-            showCreationResult(state.result);
-            fetchDeliverables();
-          } else {
-            statusLabel.innerText = 'FAILED';
-            statusLabel.style.color = '#f87171';
-            detailText.innerText = 'Failed: ' + (state.error || 'Unknown error');
+            // Show video player
+            showCompletedPlayer(state);
+          } else if (state.status === 'failed' || state.error) {
+            document.getElementById('progStatus').textContent = 'Failed';
+            document.getElementById('progStatus').className = 'badge-status error';
+            document.getElementById('detailText').textContent = state.error || 'Generation encountered an error';
           }
-          return;
         }
-
-        setTimeout(pollCreationProgress, 1200);
-      } catch (err) {
-        setTimeout(pollCreationProgress, 2000);
+      } catch (e) {
+        console.error('Status poll error', e);
       }
     }
 
-    function showCreationResult(res) {
-      const resultCard = document.getElementById('studioResultCard');
-      resultCard.classList.add('active');
-
-      const player = document.getElementById('resultVideoPlayer');
-      const filename = (res.deliverable_file || '').split('/').pop();
-      if (filename) {
-        loadVideoInto(player, '/deliverables/' + filename);
-      }
-
-      const metaEl = document.getElementById('resultMetaInfo');
-      const ytUrl = res.youtube_url ? `<a href="${res.youtube_url}" target="_blank" style="color:#60a5fa; text-decoration:underline;">Watch on YouTube</a>` : 'Saved in deliverables';
-      const igStatus = res.instagram ? `<span style="margin-left:12px; color:#f472b6;">Instagram: ${res.instagram}</span>` : '';
-
-      metaEl.innerHTML = `
-        <div style="font-weight:700; margin-bottom:4px;">${res.topic}</div>
-        <div style="color:#94a3b8; font-size:12px; margin-bottom:8px;">Rendered in ${res.total_time_sec || 0}s • Style: ${res.style || 'Anime'} • Engine: Remotion</div>
-        <div style="margin-top:6px;">${ytUrl} ${igStatus}</div>
-      `;
+    function resetStepper() {
+      const nodes = ['step-classify', 'step-script', 'step-voiceover', 'step-scenes', 'step-edit'];
+      nodes.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.className = 'step-node';
+      });
+      document.getElementById('step-classify').className = 'step-node active';
+      document.getElementById('barFill').style.width = '15%';
     }
 
-    function resetStudio() {
-      document.getElementById('studioResultCard').classList.remove('active');
-      document.getElementById('studioProgressCard').classList.remove('active');
-      document.getElementById('btnCreateShort').disabled = false;
-      document.getElementById('btnCreateShort').innerHTML = '<span>🚀</span> <span>Create Short with Remotion</span>';
-    }
+    function updateStepper(step) {
+      const order = ['classify', 'script', 'voiceover', 'scenes', 'edit'];
+      const currentIdx = order.indexOf(step);
+      if (currentIdx === -1) return;
 
-    // Auto-pilot status & actions
-    async function fetchStatus() {
-      try {
-        const res = await apiFetch('/api/status');
-        const data = await res.json();
-        isMakerRunning = !!data.running;
-        
-        const badge = document.getElementById('statusBadge');
-        const badgeText = document.getElementById('statusText');
-        const toggleBtn = document.getElementById('toggleBtn');
-        
-        if (isMakerRunning) {
-          badge.className = 'status-badge active';
-          badgeText.innerText = `ACTIVE (${data.pid || 'ON'})`;
-          toggleBtn.className = 'btn-toggle stop';
-          toggleBtn.innerHTML = '⏹ Stop Auto-Pilot Maker';
+      const pct = Math.min(95, Math.max(15, (currentIdx + 1) * 20));
+      document.getElementById('barFill').style.width = pct + '%';
+
+      order.forEach((s, idx) => {
+        const el = document.getElementById('step-' + s);
+        if (!el) return;
+        if (idx < currentIdx) {
+          el.className = 'step-node completed';
+        } else if (idx === currentIdx) {
+          el.className = 'step-node active';
         } else {
-          badge.className = 'status-badge stopped';
-          badgeText.innerText = 'STOPPED';
-          toggleBtn.className = 'btn-toggle start';
-          toggleBtn.innerHTML = '▶ Start Auto-Pilot Maker';
-        }
-
-        document.getElementById('todayCount').innerText = data.today_made || 0;
-        document.getElementById('totalCount').innerText = data.total_made || 0;
-
-        if (data.pipeline) {
-          document.getElementById('currentTopic').innerText = data.pipeline.topic || 'Idle';
-          document.getElementById('pipelineDetail').innerHTML = `<span>●</span> <span>${data.pipeline.detail || 'Idle'}</span>`;
-          const stages = ['script', 'captions', 'clips', 'render', 'upload'];
-          const cur = data.pipeline.stage;
-          let curIdx = stages.indexOf(cur);
-          if (cur === 'upload_success') curIdx = 5;
-          stages.forEach((s, idx) => {
-            const el = document.getElementById('step-' + s);
-            if (!el) return;
-            el.className = 'pipe-step ' + (idx < curIdx ? 'done' : idx === curIdx ? 'current' : '');
-          });
-        }
-      } catch (e) {}
-    }
-
-    async function toggleMaker() {
-      const toggleBtn = document.getElementById('toggleBtn');
-      toggleBtn.disabled = true;
-      try {
-        const endpoint = isMakerRunning ? '/api/maker/stop' : '/api/maker/start';
-        await apiFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-        setTimeout(fetchStatus, 600);
-      } catch (e) {
-        alert('Action failed: ' + e);
-      } finally {
-        toggleBtn.disabled = false;
-      }
-    }
-
-    async function fetchDeliverables() {
-      try {
-        const res = await apiFetch('/api/deliverables');
-        const data = await res.json();
-        const list = document.getElementById('galleryList');
-        if (!data.items || data.items.length === 0) {
-          list.innerHTML = '<div style="text-align:center; padding:30px; color:#9ca3af;">No Shorts generated yet. Create one above!</div>';
-          return;
-        }
-        list.innerHTML = data.items.map(it => {
-          const mediaUrl = it.url.startsWith('http') ? it.url : apiUrl(it.url);
-          return `
-          <div class="video-card">
-            <div class="video-preview-wrapper">
-              <video ${it.url.startsWith('http') ? `src="${mediaUrl}"` : `data-name="${encodeURIComponent(it.url)}"`} controls playsinline preload="metadata"></video>
-            </div>
-            <div class="video-meta-row">
-              <div class="video-topic">${it.topic}</div>
-              <div class="video-duration">${it.duration}s • ${it.style || 'Anime'}</div>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#94a3b8;">
-              <span>${new Date(it.created_at).toLocaleDateString()}</span>
-              <a href="${mediaUrl}" download style="color:#60a5fa; text-decoration:none; font-weight:600;">⬇ Download MP4</a>
-            </div>
-          </div>
-        `;
-        }).join('');
-        list.querySelectorAll('video[data-name]').forEach(v => loadVideoInto(v, v.dataset.name));
-      } catch (e) {
-        const list = document.getElementById('galleryList');
-        if (list) {
-          list.innerHTML = `
-            <div style="text-align:center; padding:32px 16px; color:#94a3b8;">
-              <div style="font-size:24px; margin-bottom:10px;">📡</div>
-              <div style="font-size:15px; font-weight:700; color:#e2e8f0; margin-bottom:6px;">Backend Endpoint Standby</div>
-              <div style="font-size:13px; color:#64748b; max-width:280px; margin:0 auto 16px;">Set your local server IP (e.g. <code>http://192.168.x.x:8088</code>) in <strong>Settings</strong> to view and stream videos on mobile.</div>
-              <button onclick="switchTab('settings')" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;">Open Settings</button>
-            </div>
-          `;
-        }
-      }
-    }
-
-    async function fetchLogs() {
-      try {
-        const res = await apiFetch('/api/logs?lines=60');
-        const data = await res.json();
-        const el = document.getElementById('terminalBody');
-        el.innerText = (data.lines || []).join('');
-        if (autoScrollLogs) el.scrollTop = el.scrollHeight;
-      } catch (e) {}
-    }
-
-    async function fetchSettings() {
-      try {
-        const res = await apiFetch('/api/config');
-        const data = await res.json();
-        const cfg = data.config || {};
-        if (cfg.topics) document.getElementById('topicsInput').value = cfg.topics.join('\n');
-        if (cfg.gap_minutes !== undefined) document.getElementById('gapInput').value = cfg.gap_minutes;
-        if (cfg.duration !== undefined) document.getElementById('durationInput').value = cfg.duration;
-      } catch (e) {}
-    }
-
-    async function saveSettings() {
-      const topics = document.getElementById('topicsInput').value.split('\n').map(t => t.trim()).filter(Boolean);
-      const gap_minutes = parseInt(document.getElementById('gapInput').value || 1);
-      const duration = parseInt(document.getElementById('durationInput').value || 45);
-      try {
-        const res = await apiFetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topics, gap_minutes, duration }),
-        });
-        if (res.ok) alert('Settings saved successfully!');
-      } catch (e) {
-        alert('Failed to save settings: ' + e);
-      }
-    }
-
-    // Quick-connect helpers
-    function quickConnect() {
-      const val = (document.getElementById('quickConnectInput').value || '').trim() || DEFAULT_REMOTE_BACKEND;
-      localStorage.setItem('shorts_factory_api_base', val);
-      apiBase = val;
-      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = val;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-      alert('Host updated to: ' + val);
-    }
-
-    function useDefaultTunnel() {
-      localStorage.setItem('shorts_factory_api_base', DEFAULT_REMOTE_BACKEND);
-      apiBase = DEFAULT_REMOTE_BACKEND;
-      if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = DEFAULT_REMOTE_BACKEND;
-      if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = DEFAULT_REMOTE_BACKEND;
-      checkConnectionHealth();
-      fetchStatus();
-      fetchDeliverables();
-    }
-
-    async function recheckConnection() {
-      if (savedToken()) { await establishSession(); }
-      checkConnectionHealth().then(ok => {
-        if (ok) {
-          fetchStatus();
-          fetchDeliverables();
-          alert('Successfully connected to Mac engine!');
-        } else {
-          alert('Could not reach ' + (apiBase || 'endpoint') + '.\n\nPlease verify your Mac is running: python scripts/shortsctl.py tunnel');
+          el.className = 'step-node';
         }
       });
     }
 
-    function updateSetupBanner() {
-      const banner = document.getElementById('setupBanner');
-      if (!banner) return;
-      if (!isRemoteHost) {
-        banner.style.display = 'none';
-        return;
+    function showCompletedPlayer(state) {
+      const playerCard = document.getElementById('playerCard');
+      const videoEl = document.getElementById('shortVideo');
+      const dlLink = document.getElementById('downloadLink');
+
+      let filename = state.deliverable_filename;
+      if (!filename && state.result && state.result.deliverable_file) {
+        filename = state.result.deliverable_file.split('/').pop();
       }
-      checkConnectionHealth();
+
+      if (filename) {
+        const streamUrl = `/deliverables/${filename}`;
+        apiFetch(streamUrl).then(r => {
+          if (r.ok) {
+            return r.blob().then(b => {
+              videoEl.src = URL.createObjectURL(b);
+            });
+          } else {
+            videoEl.src = streamUrl;
+          }
+        }).catch(() => {
+          videoEl.src = streamUrl;
+        });
+        dlLink.href = streamUrl;
+        document.getElementById('playerTopic').textContent = state.topic;
+        playerCard.style.display = 'block';
+        videoEl.play().catch(() => {});
+      }
     }
 
-    // Initialize
-    if (document.getElementById('apiBaseInput')) document.getElementById('apiBaseInput').value = apiBase || '';
-    if (document.getElementById('quickConnectInput')) document.getElementById('quickConnectInput').value = apiBase || '';
-    updateGenreClassification();
-    if (savedToken()) establishSession();
-    checkConnectionHealth();
-    fetchStatus();
-    fetchDeliverables();
-    setInterval(fetchStatus, 3000);
-    setInterval(checkConnectionHealth, 10000);
-    setInterval(() => {
-      if (document.getElementById('tab-logs').classList.contains('active')) fetchLogs();
-    }, 3000);
+    // Check status on initial load in case a task is already running
+    window.addEventListener('DOMContentLoaded', () => {
+      pollStatus();
+    });
   </script>
 </body>
 </html>

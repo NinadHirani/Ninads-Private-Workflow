@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
 Script Writer - AI Shorts Factory
-Generates high-retention, creative commentary scripts tailored to any genre:
-Anime, Gaming, Sci-Fi Lore, Mind-Blowing Facts, or Ambient Nature.
-Free forever: uses Gemini/Groq LLMs if keys are available, with genre-specific
-viral script templates when offline.
+Generates high-retention, creative commentary scripts tailored to any genre & topic.
+Uses dynamic storytelling archetypes, emotional tone modulation, duration-scaled pacing,
+and multi-tier LLM generation (Gemini, Groq, Pollinations free text) with an offline
+combinatorial procedural generator.
 """
 import json
 import os
 import re
 import logging
 import random
+import urllib.request
+import urllib.parse
 
 try:
     from scripts.log_sanitizer import redact
@@ -21,83 +23,93 @@ except ImportError:
         def redact(text):
             return text
 
+try:
+    from scripts.script_archetypes import (
+        ARCHETYPES,
+        EMOTIONAL_TONES,
+        auto_select_matrix,
+        build_system_prompt,
+        generate_combinatorial_script,
+        calculate_pacing_targets
+    )
+except ImportError:
+    from script_archetypes import (
+        ARCHETYPES,
+        EMOTIONAL_TONES,
+        auto_select_matrix,
+        build_system_prompt,
+        generate_combinatorial_script,
+        calculate_pacing_targets
+    )
+
 logger = logging.getLogger("script_writer")
 
-MAX_LINES = int(os.getenv("SCRIPT_MAX_LINES", "10"))
+MAX_LINES = int(os.getenv("SCRIPT_MAX_LINES", "12"))
 
+# Kept for backward compatibility
 GENRE_PROMPTS = {
-    "stoic": """You write viral, life-altering Stoic wisdom YouTube Shorts and Instagram Reels scripts.
-Topic: {topic}
-Format: 4 to 6 punchy, profound spoken sentences (target 18-20 seconds total).
-- Line 1 is an electrifying mindset hook (e.g. "Most people realize this truth way too late.").
-- Middle lines deliver razor-sharp wisdom on self-mastery, emotional control, or resilience.
-- Final line connects seamlessly back into the hook for an infinite loop.
-No emojis, no stage directions, deep cinematic spoken English.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
-
-    "tech_ai": """You write viral future tech and AI breakthrough YouTube Shorts and Instagram Reels scripts.
-Topic: {topic}
-Format: 4 to 6 fast-paced spoken sentences (target 18-20 seconds total).
-- Line 1 is a mind-bending hook about a technology that feels illegal or futuristic.
-- Middle lines rapidly explain how it works and how it shatters the status quo.
-- Final line triggers a debate or infinite loop.
-No emojis, no stage directions, conversational spoken English.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
-
-    "facts_mystery": """You write suspenseful, viral mystery and dark psychology YouTube Shorts scripts.
-Topic: {topic}
-Format: 4 to 6 short spoken sentences (target 18-20 seconds total).
-- Line 1 is an irresistible curiosity hook or paradox that stops the scroll instantly.
-- Middle lines unfold the unbelievable truth or psychology glitch point by point.
-- Final line leaves the viewer stunned and seamlessly loops back to line 1.
-No emojis, no stage directions, conversational spoken English.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
-
-    "anime": """You write high-retention viral YouTube Shorts scripts about anime and manga.
-Topic: {topic}
-Format: 4 to 6 punchy spoken sentences (target 18-20 seconds total).
-- Line 1 is an irresistible hook (a bold claim or shocking feat that grabs attention in 2 seconds).
-- Middle lines deliver the epic lore or power feats with intense excitement.
-- Final line asks who wins or loops back.
-No emojis, no stage directions, conversational spoken English.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
-
-    "gaming": """You write high-octane, viral gaming YouTube Shorts scripts.
-Topic: {topic}
-Format: 4 to 6 punchy spoken sentences (target 18-20 seconds total).
-- Line 1 is a bold gaming hook (secret trick, broken mechanic, or impossible feat).
-- Middle lines break down what makes this legendary.
-- Final line asks gamers for their take.
-No emojis, no stage directions.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
-
     "general": """You write viral vertical video scripts designed for 100%+ retention rate.
 Topic: {topic}
-Format: 4 to 6 short spoken sentences (target 18-20 seconds total).
-- Line 1 is a bold, scroll-stopping hook.
-- Middle lines deliver surprising insights.
-- Final line loops back into the first sentence.
-No emojis, no stage directions.
-Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]""",
+Respond with ONLY a JSON array of strings, for example: ["line one", "line two"]"""
 }
 
 
+def _clean_lines(text: str, max_lines: int = MAX_LINES) -> list:
+    """Robustly extracts script sentences from LLM response (JSON array, dict, or line list)."""
+    if not text:
+        return []
 
-def _clean_lines(text: str) -> list:
-    text = re.sub(r"^```(?:json)?\s*|```\s*$", "", text.strip(), flags=re.M).strip()
-    data = json.loads(text)
-    lines = [str(x).strip() for x in (data if isinstance(data, list) else data.get("lines", [])) if str(x).strip()]
-    return lines[:MAX_LINES]
+    cleaned = re.sub(r"^```(?:json)?\s*|```\s*$", "", text.strip(), flags=re.M).strip()
+
+    # Attempt 1: Direct JSON parsing
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, list):
+            lines = [str(x).strip() for x in data if str(x).strip()]
+            if lines:
+                return lines[:max_lines]
+        elif isinstance(data, dict):
+            raw = data.get("lines") or data.get("script") or list(data.values())
+            if isinstance(raw, list):
+                lines = [str(x).strip() for x in raw if str(x).strip()]
+                if lines:
+                    return lines[:max_lines]
+    except Exception:
+        pass
+
+    # Attempt 2: Extract JSON array with regex
+    match = re.search(r'\[\s*".*?"\s*\]', cleaned, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(0))
+            if isinstance(data, list):
+                return [str(x).strip() for x in data if str(x).strip()][:max_lines]
+        except Exception:
+            pass
+
+    # Attempt 3: Line-by-line fallback (bullet points, numbered lines)
+    raw_lines = cleaned.splitlines()
+    lines = []
+    for line in raw_lines:
+        line = re.sub(r'^(?:\d+[\.\)]|\-|\*)\s*', '', line.strip()).strip(' "\'')
+        if line and len(line) > 10:
+            lines.append(line)
+
+    if lines:
+        return lines[:max_lines]
+
+    # Attempt 4: Sentence splitting
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', cleaned) if len(s.strip()) > 10]
+    return sentences[:max_lines]
 
 
-def _try_gemini(topic: str, category: str):
+def _try_gemini(topic: str, category: str = "general", prompt: str = None):
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         return None
-    import urllib.request
-    prompt_tpl = GENRE_PROMPTS.get(category, GENRE_PROMPTS["general"])
-    prompt = prompt_tpl.format(topic=topic, max_lines=MAX_LINES)
-    url = ("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + key)
+    if not prompt:
+        prompt = build_system_prompt(topic, "narrative_story", "awe_inspiring", 45, "english")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -105,115 +117,136 @@ def _try_gemini(topic: str, category: str):
     return _clean_lines(out["candidates"][0]["content"]["parts"][0]["text"])
 
 
-def _try_groq(topic: str, category: str):
+def _try_groq(topic: str, category: str = "general", prompt: str = None):
     key = os.getenv("GROQ_API_KEY")
     if not key:
         return None
-    import urllib.request
-    prompt_tpl = GENRE_PROMPTS.get(category, GENRE_PROMPTS["general"])
-    prompt = prompt_tpl.format(topic=topic, max_lines=MAX_LINES)
+    if not prompt:
+        prompt = build_system_prompt(topic, "narrative_story", "awe_inspiring", 45, "english")
     body = json.dumps({
         "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.8,
     }).encode()
-    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=body,
-                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
+    )
     with urllib.request.urlopen(req, timeout=30) as resp:
         out = json.loads(resp.read().decode())
     return _clean_lines(out["choices"][0]["message"]["content"])
 
 
-def _genre_templates(topic: str, category: str) -> list:
-    t = topic.strip().rstrip(".")
-    title_case = t.title()
-
-    if category == "anime":
-        return [
-            f"Here is the wild reason {title_case} changed anime forever.",
-            f"Most shonen heroes train for decades to barely survive their enemies.",
-            f"Yet in {title_case}, every single battle ends with pure shock.",
-            "The creators threw out every standard rule of powerscaling.",
-            "Instead of endless power-ups, we got raw unstoppable dominance.",
-            "Fans still debate what would happen if this world collided with other universes.",
-            "Because when a single blow can alter the weather, nobody stands a chance.",
-            "Who do you think has any hope of surviving this? Tell me in the comments!",
-        ]
-
-    if category == "facts_mystery":
-        return [
-            f"There is a chilling paradox about {title_case} that scientists rarely discuss.",
-            "On the surface, everything seems completely ordinary.",
-            "Until you look at the raw data beneath reality.",
-            "What happened next shattered our traditional understanding.",
-            "Every single experiment revealed an impossible contradiction.",
-            "And the closer we look, the more mysterious it becomes.",
-            "Some believe we were never meant to uncover this truth.",
-            "Do you think humanity is ready to understand it?",
-        ]
-
-    if category == "gaming":
-        return [
-            f"This secret feature in {title_case} completely broke the entire game.",
-            "For years, players thought they knew every mechanic.",
-            "Until one creator discovered an unintended combo.",
-            "It bypassed every damage cap in the game engine.",
-            "Developers rushed to patch it, but players had already conquered the leaderboard.",
-            "Even now, it remains one of the most legendary exploits in gaming history.",
-            "Did you ever manage to pull this off back in the day?",
-        ]
-
-    if category == "nature":
-        return [
-            f"Take a deep breath and immerse yourself in {title_case}.",
-            "Far away from the noise, the natural world moves in rhythm.",
-            "Ancient forces carve through the landscape with timeless patience.",
-            "Every droplet, every leaf, tells a story millions of years in the making.",
-            "Moments like this remind us of how vast and peaceful the earth truly is.",
-            "Pause for ten seconds and let this serenity sink in.",
-            "Which place brings you this kind of peace? Save this for your daily calm.",
-        ]
-
-    # General default
-    return [
-        f"Everyone is talking about {title_case}, but almost nobody sees the real picture.",
-        f"Here is the exact breakthrough that changed everything.",
-        "For years, people assumed this was completely impossible.",
-        "Then one radical shift turned the whole system upside down.",
-        "And the ones who recognized it early are dominating today.",
-        "So what does this actually mean for you?",
-        "A huge gap between those who adapt and those who get left behind.",
-        "Now you know before the crowd does.",
-    ]
+def _try_pollinations(topic: str, category: str = "general", prompt: str = None):
+    """Free online AI text generation fallback without requiring any API keys."""
+    if os.getenv("SHORTS_MOCK") == "1":
+        return None
+    if not prompt:
+        prompt = build_system_prompt(topic, "narrative_story", "awe_inspiring", 45, "english")
+    try:
+        url = "https://text.pollinations.ai/"
+        body = json.dumps({
+            "messages": [{"role": "user", "content": prompt}],
+            "model": "openai",
+            "jsonMode": True
+        }).encode()
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={"Content-Type": "application/json", "User-Agent": "AI-Shorts-Factory/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            text = resp.read().decode("utf-8")
+        return _clean_lines(text)
+    except Exception as exc:
+        logger.debug("Pollinations text API unavailable: %s", redact(str(exc)))
+        return None
 
 
-def write_script(topic: str, category: str = None) -> dict:
+def write_script(
+    topic: str,
+    category: str = None,
+    duration: int = 45,
+    archetype: str = None,
+    emotion: str = None,
+    language: str = None
+) -> dict:
+    """
+    Writes a viral commentary script using dynamic storytelling archetypes and emotions.
+    Automatically resolves missing parameters using the intelligent auto-selection matrix.
+    """
     topic = (topic or "").strip() or "artificial intelligence"
-    if not category:
-        from scripts.scene_generator import classify_topic
-        category = classify_topic(topic).get("category", "general")
 
-    for writer, fn in (("gemini", _try_gemini), ("groq", _try_groq)):
+    if not category:
         try:
-            lines = fn(topic, category)
-            if lines:
-                logger.info("Script written with %s (%d lines, category=%s)", writer, len(lines), category)
+            from scripts.scene_generator import classify_topic
+            category = classify_topic(topic).get("category", "general")
+        except Exception:
+            category = "general"
+
+    # Intelligent Auto-Selection if archetype / emotion / language not explicitly specified
+    matrix = auto_select_matrix(topic, category)
+    archetype = archetype or matrix["archetype"]
+    emotion = emotion or matrix["emotion"]
+    language = language or matrix["language"]
+
+    prompt = build_system_prompt(
+        topic=topic,
+        archetype_key=archetype,
+        emotion_key=emotion,
+        duration=duration,
+        language=language
+    )
+
+    # Multi-Tier LLM Generation Chain
+    writers = [("gemini", _try_gemini), ("groq", _try_groq)]
+    if os.getenv("USE_POLLINATIONS_TEXT", "1") == "1" and not (os.getenv("GEMINI_API_KEY") or os.getenv("GROQ_API_KEY")):
+        writers.append(("pollinations", _try_pollinations))
+
+    for writer_name, fn in writers:
+        try:
+            try:
+                lines = fn(topic, category, prompt=prompt)
+            except TypeError:
+                lines = fn(topic, category)
+
+            if lines and len(lines) >= 3:
+                logger.info(
+                    "Script written with %s (%d lines, archetype=%s, emotion=%s, lang=%s)",
+                    writer_name, len(lines), archetype, emotion, language
+                )
                 return {
                     "status": "SUCCESS",
-                    "writer": writer,
+                    "writer": writer_name,
                     "category": category,
+                    "archetype": archetype,
+                    "emotion": emotion,
+                    "language": language,
                     "lines": lines,
                     "caption": topic.upper()[:60],
                 }
         except Exception as exc:
-            logger.warning("%s failed (%s), trying next writer", writer, redact(str(exc)))
+            logger.warning("%s failed (%s), trying next writer", writer_name, redact(str(exc)))
 
-    lines = _genre_templates(topic, category)
-    logger.info("Script written with built-in genre template (%d lines, category=%s)", len(lines), category)
+    # Offline Procedural Fallback (Combinatorial sentence banks)
+    lines = generate_combinatorial_script(
+        topic=topic,
+        archetype=archetype,
+        duration=duration,
+        language=language
+    )
+    logger.info(
+        "Script written with procedural combinatorial generator (%d lines, archetype=%s, emotion=%s)",
+        len(lines), archetype, emotion
+    )
     return {
         "status": "SUCCESS",
         "writer": "genre_template",
         "category": category,
+        "archetype": archetype,
+        "emotion": emotion,
+        "language": language,
         "lines": lines,
         "caption": topic.upper()[:60],
     }
@@ -221,11 +254,22 @@ def write_script(topic: str, category: str = None) -> dict:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Write a commentary script for a topic")
+    parser = argparse.ArgumentParser(description="Write a dynamic commentary script for a topic")
     parser.add_argument("--topic", type=str, required=True)
     parser.add_argument("--category", type=str, default=None)
+    parser.add_argument("--duration", type=int, default=45)
+    parser.add_argument("--archetype", type=str, default=None)
+    parser.add_argument("--emotion", type=str, default=None)
+    parser.add_argument("--language", type=str, default=None)
     args = parser.parse_args()
-    print(json.dumps(write_script(args.topic, args.category), indent=2))
+    print(json.dumps(write_script(
+        topic=args.topic,
+        category=args.category,
+        duration=args.duration,
+        archetype=args.archetype,
+        emotion=args.emotion,
+        language=args.language
+    ), indent=2))
 
 
 if __name__ == "__main__":

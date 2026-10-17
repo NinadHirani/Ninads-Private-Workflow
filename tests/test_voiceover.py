@@ -8,6 +8,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from scripts import voiceover  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _disable_macos_say_by_default(monkeypatch):
+    """By default in unit tests, mock say as absent so tests don't invoke real macOS say."""
+    orig_which = voiceover.shutil.which
+
+    def fake_which(cmd, *args, **kwargs):
+        if cmd == "say":
+            return None
+        return orig_which(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(voiceover.shutil, "which", fake_which)
+
+
 def test_retry_then_success(monkeypatch):
     """First edge-tts attempt fails (e.g. 403), retry with the same voice succeeds."""
     calls = []
@@ -224,3 +237,49 @@ def test_piper_uses_the_same_interpreter_as_the_availability_check(monkeypatch):
 
     vo._piper("hello world", "/tmp/out.wav")
     assert calls and calls[0][0] == "/venv/bin/python"
+
+
+def test_get_voice_candidates_adapts_to_category():
+    # Stoic category
+    stoic_voices = voiceover.get_voice_candidates(category="stoic")
+    assert "en-US-ChristopherNeural" in stoic_voices[:2]
+
+    # Facts & Mystery category
+    facts_voices = voiceover.get_voice_candidates(category="facts_mystery")
+    assert "en-US-GuyNeural" in facts_voices[:2]
+
+    # Tech AI category
+    tech_voices = voiceover.get_voice_candidates(category="tech_ai")
+    assert any(v in ("en-US-AndrewMultilingualNeural", "en-US-BrianNeural") for v in tech_voices[:2])
+
+    # Nature category
+    nature_voices = voiceover.get_voice_candidates(category="nature")
+    assert "en-US-EmmaMultilingualNeural" in nature_voices[:2]
+
+
+def test_get_voice_candidates_adapts_to_gender_keywords():
+    female_topic_voices = voiceover.get_voice_candidates(category="stoic", topic="The wisdom of the Roman Empress and wise mother")
+    assert female_topic_voices[0] in voiceover.FEMALE_VOICES
+
+
+def test_get_speech_rate():
+    assert voiceover.get_speech_rate("stoic") == "-3%"
+    assert voiceover.get_speech_rate("nature") == "-4%"
+    assert voiceover.get_speech_rate("facts_mystery") == "+2%"
+    assert voiceover.get_speech_rate("tech_ai") == "+2%"
+    assert voiceover.get_speech_rate("unknown") == "+0%"
+
+
+def test_make_voiceover_adapts_to_category(monkeypatch, tmp_path):
+    recorded_calls = []
+
+    def fake_edge(text, out_dir, wav, voice=None, rate=None):
+        recorded_calls.append({"voice": voice, "rate": rate})
+        return [{"word": "virtue", "start": 0.0, "end": 0.5}]
+
+    monkeypatch.setattr(voiceover, "_edge", fake_edge)
+    res = voiceover.make_voiceover(["Virtue is the only good."], str(tmp_path), category="stoic", topic="Marcus Aurelius on virtue")
+    assert res["status"] == "SUCCESS"
+    assert res["voice_name"] in ("en-US-ChristopherNeural", "en-US-EricNeural", "en-GB-RyanNeural")
+    assert recorded_calls[0]["rate"] == "-3%"
+

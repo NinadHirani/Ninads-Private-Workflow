@@ -22,6 +22,8 @@ import subprocess
 import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 LOG_DIR = os.path.join(ROOT, os.getenv("LOG_PATH", "logs"))
 PID_FILE = os.path.join(LOG_DIR, "auto.pid")
 STOP_FILE = os.path.join(LOG_DIR, "STOP")
@@ -346,6 +348,49 @@ def cmd_tunnel(args):
         print("\nTunnel closed.")
 
 
+def cmd_series(args):
+    from scripts import series_pipeline, series_manager
+    if args.list:
+        series_list = series_manager.list_all_series()
+        print(json.dumps(series_list, indent=2))
+        return
+
+    if args.status:
+        st = series_manager.load_series(args.series)
+        if not st:
+            print(f"Series '{args.series}' not found.")
+            return
+        era = series_manager.get_current_era(st)
+        print(f"\n=======================================================")
+        print(f" SERIES: {st.get('title')} ({st.get('series_id')})")
+        print(f" Current Episode: #{st.get('current_episode')} | Timeline: Day {st.get('timeline_day')}")
+        print(f" Current Era: {era.get('name')} - {era.get('subtitle')}")
+        print(f" Protagonist: {st.get('character', {}).get('name')}")
+        print(f" Condition: {st.get('character', {}).get('physical_condition')}")
+        print(f" Gear: {st.get('character', {}).get('signature_gear')}")
+        print(f" Last Cliffhanger: {st.get('last_cliffhanger')}")
+        print(f" Total Episodes Produced: {len(st.get('episode_history', []))}")
+        print(f"=======================================================\n")
+        return
+
+    if args.init:
+        st = series_manager.init_series(args.series, preset=args.preset)
+        print(f"Series '{args.series}' initialized. Next episode: #{st['current_episode']}")
+        return
+
+    if args.batch > 0:
+        results = series_pipeline.produce_batch(
+            series_id=args.series, preset=args.preset, count=args.batch, target_duration=args.duration
+        )
+        print(json.dumps(results, indent=2))
+        return
+
+    res = series_pipeline.produce_episode(
+        series_id=args.series, preset=args.preset, target_duration=args.duration
+    )
+    print(json.dumps(res, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="One-click control for AI Shorts Factory")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -370,6 +415,16 @@ def main():
     p_tunnel = sub.add_parser("tunnel", help="Open a secure HTTPS tunnel to connect from Vercel")
     p_tunnel.add_argument("--port", type=int, default=8088, help="Port to tunnel (default: 8088)")
 
+    p_ser = sub.add_parser("series", help="Produce continuous multi-part episodic series (Remotion)")
+    p_ser.add_argument("--series", type=str, default="kane", help="Unique series ID")
+    p_ser.add_argument("--preset", type=str, default="kane", choices=["kane", "goliath", "zero_stickman"], help="Preset template")
+    p_ser.add_argument("--init", action="store_true", help="Initialize series state")
+    p_ser.add_argument("--next", action="store_true", help="Produce next episode")
+    p_ser.add_argument("--batch", type=int, default=0, help="Batch produce N continuous episodes")
+    p_ser.add_argument("--status", action="store_true", help="Check series state")
+    p_ser.add_argument("--list", action="store_true", help="List all series")
+    p_ser.add_argument("--duration", type=int, default=40, help="Target video duration")
+
     args = parser.parse_args()
     handlers = {
         "connect": cmd_connect,
@@ -380,6 +435,7 @@ def main():
         "ui": cmd_ui,
         "service": cmd_service,
         "tunnel": cmd_tunnel,
+        "series": cmd_series,
     }
     handlers[args.command](args)
 

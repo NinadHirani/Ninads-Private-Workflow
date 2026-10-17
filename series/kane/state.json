@@ -1,0 +1,57 @@
+{
+  "series_id": "kane",
+  "title": "The Last Wanderer: Kane's Chronicles",
+  "genre": "gritty_survival",
+  "voice": "en-US-ChristopherNeural",
+  "style": "cinematic",
+  "current_episode": 1,
+  "timeline_day": 1,
+  "current_era_index": 0,
+  "character": {
+    "name": "Kane",
+    "archetype": "lone survivor",
+    "visual_identity": "Kane, a weathered 32-year-old lone survivor, short dark disheveled hair, jagged scar across left brow, tactical charcoal-olive jacket with reinforced stitched canvas patches, fingerless leather gloves, rugged military backpack with red climbing carabiner and worn bedroll",
+    "signature_gear": "serrated combat blade, cracked handheld Geiger counter, dented brass lighter",
+    "physical_condition": "Right shoulder bound with weather-stained linen, cautious alert posture",
+    "mental_state": "hyper-vigilant, grim resolve, deeply knowledgeable in wasteland survival"
+  },
+  "eras": [
+    {
+      "name": "Era 1: The Ash Fall",
+      "subtitle": "The Initial Collapse",
+      "description": "Global skies choked by volcanic ash and orbital debris. Cities are silent husks, and blind subterranean predators hunt by acoustic vibration.",
+      "visual_palette": "charcoal gray, toxic orange ember glow, thick volumetric ash fog, decaying brutalist skyscrapers, 35mm film grain, 8k cinematic realism",
+      "duration_episodes": 12
+    },
+    {
+      "name": "Era 2: The Sunken Grid",
+      "subtitle": "Subterranean Exodus",
+      "description": "Surface freezes over. Survivors descend into flooded metro transit catacombs, battling bioluminescent aquatic mutants and ruthless scavenger cults.",
+      "visual_palette": "deep murky teal, bioluminescent cyan fungi, rusted train cars, dripping industrial pipes, underwater flares",
+      "duration_episodes": 15
+    },
+    {
+      "name": "Era 3: The Celestial Rupture",
+      "subtitle": "The Anomaly",
+      "description": "A shattered alien monolith impacts the continent. Reality fractures with shifting localized gravity, crystalline fauna, and mysterious spatial rifts.",
+      "visual_palette": "violet starlight, levitating obsidian monoliths, shimmering spatial distortions, electric purple mist",
+      "duration_episodes": 20
+    },
+    {
+      "name": "Era 4: The Iron Ascendance",
+      "subtitle": "Rise of the Machines",
+      "description": "Dormant pre-war autonomous war complexes reboot without human oversight. Autonomous hunter-striders and lethal search-drones scour the wasteland.",
+      "visual_palette": "cold brushed steel, laser crimson optic sensors, blinding searchlight beams in rain, high-tech ruins",
+      "duration_episodes": 25
+    }
+  ],
+  "world_state": {
+    "location": "Sector 4 Ruined Transit Hub",
+    "weather": "Dense toxic ash fall, waning daylight",
+    "threat": "Subterranean acoustic crawlers active in shadows"
+  },
+  "last_cliffhanger": null,
+  "episode_history": [],
+  "created_at": "2026-10-17 14:38:22",
+  "updated_at": "2026-10-17 14:38:22"
+}

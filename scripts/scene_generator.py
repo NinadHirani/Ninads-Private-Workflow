@@ -292,11 +292,11 @@ def download_pollinations_image(prompt: str, out_path: str) -> bool:
     seed = random.randint(100000, 9999999)
     encoded = urllib.parse.quote(prompt)
 
-    # Try fast models in order: turbo, flux, then default
+    # Try models in order: flux (photorealistic/cinematic), default, then turbo
     candidate_urls = [
-        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=turbo&nologo=true&seed={seed}",
-        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={seed}",
         f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true&seed={seed}",
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&nologo=true&seed={seed}",
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=turbo&nologo=true&seed={seed}",
     ]
 
     for candidate_url in candidate_urls:
@@ -332,8 +332,11 @@ def collect_scenes(topic: str, total_duration_sec: float, out_dir: str,
     if callable(on_progress):
         on_progress("scenes", "running", f"Mode: {info['visual_mode']}, Category: {info['category']}")
 
-    # 1. Stock Video Mode (for Nature / Real-World)
-    if info["visual_mode"] == "stock_video" and not mock_mode():
+    # 1. Stock Video Mode (Collects authentic high-definition video clips for realistic cinematic results)
+    prefer_real_video = os.getenv("PREFER_REAL_VIDEO", "1").strip().lower() in ("1", "true", "yes")
+    should_search_stock = (info["visual_mode"] == "stock_video" or (prefer_real_video and info["category"] != "anime")) and not mock_mode()
+
+    if should_search_stock:
         from scripts.content_finder import find_videos, _pick_file
         try:
             from scripts.logger import get_used_asset_ids
@@ -342,26 +345,48 @@ def collect_scenes(topic: str, total_duration_sec: float, out_dir: str,
             used_ids = set()
 
         downloaded_clips = []
-        page = 1
-        while len(downloaded_clips) < n_scenes and page <= 3:
-            candidates = find_videos(topic, page=page)
-            if not candidates:
+        queries = [topic]
+        clean_topic = re.sub(r"[^\w\s]", " ", topic).strip()
+        if clean_topic.lower() != topic.lower() and len(clean_topic) > 3:
+            queries.append(clean_topic)
+
+        # Contextual cinematic fallback keywords if exact topic is too narrow
+        category_fallbacks = {
+            "stoic": ["roman statue", "stoic philosophy", "ancient statue", "philosopher statue"],
+            "tech_ai": ["humanoid robot", "artificial intelligence", "future technology", "cyberpunk city"],
+            "facts_mystery": ["dark mystery", "cinematic shadows", "space cosmos", "surreal mystery"],
+            "nature": ["nature landscape 4k", "forest sunlight", "ocean waves", "waterfall landscape"],
+            "movie_scene": ["cinematic movie", "dramatic lighting", "movie scene"],
+            "movie": ["cinematic movie", "dramatic lighting", "movie scene"],
+            "scifi_lore": ["space cosmos", "black hole", "galaxy stars", "sci-fi futuristic"],
+            "general": ["cinematic dramatic", "cinematic atmosphere", "cinematic portrait"],
+        }
+        if info["category"] in category_fallbacks:
+            queries.extend(category_fallbacks[info["category"]])
+
+        for q in queries:
+            if len(downloaded_clips) >= n_scenes:
                 break
-            for cand in candidates:
-                cand_id = str(cand.get("id", ""))
-                if cand_id in used_ids or f"pexels_{cand_id}" in used_ids or f"pixabay_{cand_id}" in used_ids:
-                    continue
-                best_file, _ = _pick_file(cand.get("video_files", []))
-                if not best_file or not best_file.get("link"):
-                    continue
-                if best_file.get("link") in used_ids:
-                    continue
-                dl = download_video(best_file["link"])
-                if dl.get("status") == "SUCCESS":
-                    downloaded_clips.append({"file_path": dl["file_path"], "asset_id": cand_id, "url": best_file.get("link")})
-                    if len(downloaded_clips) >= n_scenes:
-                        break
-            page += 1
+            page = 1
+            while len(downloaded_clips) < n_scenes and page <= 2:
+                candidates = find_videos(q, page=page)
+                if not candidates:
+                    break
+                for cand in candidates:
+                    cand_id = str(cand.get("id", ""))
+                    if cand_id in used_ids or f"pexels_{cand_id}" in used_ids or f"pixabay_{cand_id}" in used_ids:
+                        continue
+                    best_file, _ = _pick_file(cand.get("video_files", []))
+                    if not best_file or not best_file.get("link"):
+                        continue
+                    if best_file.get("link") in used_ids:
+                        continue
+                    dl = download_video(best_file["link"])
+                    if dl.get("status") == "SUCCESS":
+                        downloaded_clips.append({"file_path": dl["file_path"], "asset_id": cand_id, "url": best_file.get("link")})
+                        if len(downloaded_clips) >= n_scenes:
+                            break
+                page += 1
 
         if downloaded_clips:
             for idx, item in enumerate(downloaded_clips):
@@ -374,7 +399,7 @@ def collect_scenes(topic: str, total_duration_sec: float, out_dir: str,
                     "durationInFrames": dur,
                 })
             if callable(on_progress):
-                on_progress("scenes", "done", f"Collected {len(scenes)} fresh stock video clips")
+                on_progress("scenes", "done", f"Collected {len(scenes)} fresh realistic video clips")
             return scenes
 
     # 2. AI Visual Generation Mode (Anime, Sci-Fi, Gaming, Facts, etc.)

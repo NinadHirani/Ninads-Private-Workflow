@@ -141,6 +141,9 @@ CREATION_STATE = {
     "started_at": 0,
     "result": None,
     "error": None,
+    "continuous": False,
+    "count": 0,
+    "stop_requested": False,
 }
 
 
@@ -450,6 +453,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.handle_api_set_config(payload)
         elif path == "/api/create":
             self.handle_api_create(payload)
+        elif path == "/api/create/stop":
+            self.handle_api_create_stop()
         else:
             self.send_error(404, "Not Found")
 
@@ -608,15 +613,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
         with CREATION_LOCK:
             self.send_json(dict(CREATION_STATE))
 
+    def handle_api_create_stop(self):
+        global CREATION_STATE
+        with CREATION_LOCK:
+            CREATION_STATE["stop_requested"] = True
+            CREATION_STATE["detail"] = "Stopping creation after current video completes..."
+        self.send_json({"status": "STOPPING", "count": CREATION_STATE.get("count", 0)})
+
     def handle_api_create(self, payload: dict):
         global CREATION_STATE
-        topic = (payload.get("topic") or "").strip()
-        if not topic:
+        raw_topic = (payload.get("topic") or "").strip()
+        if not raw_topic:
             return self.send_json({"status": "FAILED", "error": "Topic cannot be empty"}, 400)
+
+        topic_lines = [line.strip() for line in raw_topic.splitlines() if line.strip()]
+        topic = topic_lines[0] if topic_lines else raw_topic
+        continuous = bool(payload.get("continuous", len(topic_lines) > 1))
 
         with CREATION_LOCK:
             if CREATION_STATE["active"]:
-                return self.send_json({"status": "FAILED", "error": f"Another short is already generating: '{CREATION_STATE['topic']}'"}, 409)
+                return self.send_json({"status": "FAILED", "error": f"Another creation is already running: '{CREATION_STATE['topic']}'"}, 409)
 
             duration = int(payload.get("duration") or 45)
             privacy = payload.get("privacy") or "public"
@@ -631,6 +647,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             CREATION_STATE["started_at"] = time.time()
             CREATION_STATE["result"] = None
             CREATION_STATE["error"] = None
+            CREATION_STATE["continuous"] = continuous
+            CREATION_STATE["count"] = 0
+            CREATION_STATE["stop_requested"] = False
+            CREATION_STATE["deliverable_filename"] = None
 
         def worker():
             global CREATION_STATE
@@ -639,36 +659,85 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif "AUDIO_MODE" in os.environ:
                 del os.environ["AUDIO_MODE"]
 
-            def on_progress(step, status, detail=None):
-                with CREATION_LOCK:
-                    CREATION_STATE["step"] = step
-                    CREATION_STATE["status"] = status
-                    if detail:
-                        CREATION_STATE["detail"] = str(detail)
+            context_topics = []
+            niche_context = ""
+            if os.path.exists(CONTEXT_FILE):
+                try:
+                    with open(CONTEXT_FILE, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                        context_topics = cfg.get("topics", [])
+                        niche_context = cfg.get("context", "")
+                except Exception:
+                    pass
 
-            try:
-                result = run_story(
-                    topic=topic,
-                    duration=duration,
-                    privacy=privacy,
-                    upload=upload,
-                    on_progress=on_progress,
-                )
+            from scripts.auto_run import topic_iterator
+            if len(topic_lines) > 1:
+                seed_pool = topic_lines
+            else:
+                seed_pool = [topic] + [t for t in context_topics if t != topic]
+            topic_gen = topic_iterator(seed_pool, niche_context=niche_context)
+            current_topic = topic
+
+            while True:
                 with CREATION_LOCK:
-                    CREATION_STATE["active"] = False
-                    CREATION_STATE["status"] = "done" if result.get("status") == "SUCCESS" else "failed"
-                    CREATION_STATE["result"] = result
-                    if result.get("status") != "SUCCESS":
-                        CREATION_STATE["error"] = result.get("error", "Generation failed")
-            except Exception as e:
+                    if CREATION_STATE["stop_requested"]:
+                        CREATION_STATE["active"] = False
+                        CREATION_STATE["status"] = "stopped"
+                        CREATION_STATE["detail"] = f"Creation stopped. Total made: {CREATION_STATE['count']}."
+                        break
+                    CREATION_STATE["topic"] = current_topic
+                    CREATION_STATE["step"] = "init"
+                    CREATION_STATE["status"] = "running"
+                    CREATION_STATE["detail"] = f"Generating video #{CREATION_STATE['count'] + 1}: '{current_topic}'"
+
+                def on_progress(step, status, detail=None):
+                    with CREATION_LOCK:
+                        CREATION_STATE["step"] = step
+                        CREATION_STATE["status"] = status
+                        if detail:
+                            CREATION_STATE["detail"] = str(detail)
+
+                try:
+                    result = run_story(
+                        topic=current_topic,
+                        duration=duration,
+                        privacy=privacy,
+                        upload=upload,
+                        on_progress=on_progress,
+                    )
+                    with CREATION_LOCK:
+                        if result.get("status") == "SUCCESS":
+                            CREATION_STATE["count"] += 1
+                            if result.get("deliverable_file"):
+                                CREATION_STATE["deliverable_filename"] = os.path.basename(result["deliverable_file"])
+                        CREATION_STATE["result"] = result
+                        if result.get("status") != "SUCCESS":
+                            CREATION_STATE["error"] = result.get("error", "Generation failed")
+                except Exception as e:
+                    with CREATION_LOCK:
+                        CREATION_STATE["error"] = str(e)
+
                 with CREATION_LOCK:
-                    CREATION_STATE["active"] = False
-                    CREATION_STATE["status"] = "failed"
-                    CREATION_STATE["error"] = str(e)
+                    if not continuous or CREATION_STATE["stop_requested"]:
+                        CREATION_STATE["active"] = False
+                        CREATION_STATE["status"] = "done" if not CREATION_STATE.get("error") else "failed"
+                        break
+                    if len(topic_lines) > 1 and CREATION_STATE["count"] >= len(topic_lines) and payload.get("continuous") is None:
+                        CREATION_STATE["active"] = False
+                        CREATION_STATE["status"] = "done"
+                        break
+                    CREATION_STATE["step"] = "next_queued"
+                    CREATION_STATE["detail"] = f"Video #{CREATION_STATE['count']} completed! Preparing next video..."
+
+                time.sleep(3)
+                try:
+                    current_topic = next(topic_gen)
+                except Exception:
+                    current_topic = f"{topic} (Edition {CREATION_STATE['count'] + 1})"
 
         t = threading.Thread(target=worker, daemon=True)
         t.start()
-        self.send_json({"status": "STARTED", "topic": topic})
+        self.send_json({"status": "STARTED", "topic": topic, "continuous": continuous})
 
     def handle_maker_start(self, payload: dict):
         if shortsctl.daemon_running():
@@ -677,7 +746,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         class Args:
             context = CONTEXT_FILE
-            privacy = payload.get("privacy", "private")
+            privacy = payload.get("privacy", "public")
 
         try:
             shortsctl.cmd_start(Args())

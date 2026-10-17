@@ -96,7 +96,8 @@ def _fallback_clip_paths(scenes: list, workdir: str, fps: int = 30):
     return clips
 
 
-def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 4, on_progress = None) -> dict:
+def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int = 4, on_progress = None,
+                  archetype: str = None, emotion: str = None, language: str = None, subtitles: bool = None) -> dict:
     started = time.time()
     steps = {}
     workdir = tempfile.mkdtemp(prefix="story_")
@@ -156,18 +157,42 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         steps["voiceover"] = {"voice": None, "words": 0, "mode": "nature_asmr"}
         notify("voiceover", "done", "Nature ASMR mode: natural soundscape + relaxing ambient music")
     else:
-        # Commentary (Facts, Stoic, Tech, etc.): high-retention viral script + neural voiceover
+        # Commentary (Facts, Stoic, Tech, Desi Brainrot, etc.): dynamic high-retention script + neural voiceover
         notify("script", "running", topic)
-        script = write_script(topic, category=genre_info["category"])
-        steps["script"] = {"writer": script["writer"], "lines": len(script["lines"]), "category": genre_info["category"]}
+        script = write_script(
+            topic,
+            category=genre_info["category"],
+            duration=int(duration),
+            archetype=archetype,
+            emotion=emotion,
+            language=language
+        )
+        steps["script"] = {
+            "writer": script["writer"],
+            "lines": len(script["lines"]),
+            "category": genre_info["category"],
+            "archetype": script.get("archetype"),
+            "emotion": script.get("emotion"),
+            "language": script.get("language")
+        }
         notify("script", "done")
 
-        notify("voiceover", "running")
-        vo = make_voiceover(script["lines"], workdir)
-        steps["voiceover"] = {"voice": vo.get("voice"), "words": len(vo.get("words") or [])}
+        notify("voiceover", "running", f"Voice adapted for {genre_info['category']}")
+        try:
+            vo = make_voiceover(
+                script["lines"],
+                workdir,
+                category=genre_info["category"],
+                topic=topic,
+                emotion=script.get("emotion"),
+                language=script.get("language")
+            )
+        except TypeError:
+            vo = make_voiceover(script["lines"], workdir)
+        steps["voiceover"] = {"voice": vo.get("voice"), "voice_name": vo.get("voice_name"), "words": len(vo.get("words") or [])}
         if vo.get("status") != "SUCCESS":
             return fail("voiceover", vo.get("error", "voiceover failed"))
-        notify("voiceover", "done")
+        notify("voiceover", "done", f"Spoken with {vo.get('voice_name') or vo.get('voice')}")
 
         words = vo.get("words") or []
         if words:
@@ -183,6 +208,13 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         else:
             final_duration = float(duration)
 
+    # Subtitle Configuration (Cleanly optional)
+    subtitles_enabled = True
+    if subtitles is not None:
+        subtitles_enabled = bool(subtitles)
+    elif os.getenv("SUBTITLES") == "0" or os.getenv("NO_CAPTIONS") == "1":
+        subtitles_enabled = False
+
     # 4. Hybrid Scene Generation (AI Scenes or Stock Video)
     notify("scenes", "running", f"{genre_info['visual_mode']} for {topic}")
     scenes = collect_scenes(topic, final_duration, workdir, n_scenes=n_clips, on_progress=notify)
@@ -192,7 +224,8 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
     notify("scenes", "done")
 
     # 5. Render with Remotion (programmatic 1080x1920 video with kinetic captions & Ken Burns motion)
-    notify("edit", "running", f"Remotion render ({genre_info['style']}, {round(final_duration, 1)}s)")
+    chosen_style = (os.getenv("EDIT_STYLE") or genre_info.get("style") or "cinematic").strip().lower()
+    notify("edit", "running", f"Remotion render ({chosen_style}, {round(final_duration, 1)}s)")
     edited_path = os.path.join(workdir, "remotion_short.mp4")
 
     remotion_res = render_with_remotion(
@@ -201,7 +234,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         words=words,
         output_mp4=edited_path,
         title=genre_info.get("badge_title", topic.upper()[:40]),
-        style=genre_info.get("style", "cinematic"),
+        style=chosen_style,
         music_src=audio_cfg.get("music_src"),
         music_volume=audio_cfg.get("music_volume", 0.18),
         ambient_src=audio_cfg.get("ambient_src"),
@@ -209,6 +242,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
         logo_src=logo if logo and os.path.exists(logo) else None,
         fallback_text=" ".join(script.get("lines", [])),
         use_original_audio=audio_cfg.get("use_original_audio", False),
+        show_captions=subtitles_enabled,
         on_progress=notify,
     )
 
@@ -235,7 +269,7 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
                     # never materialises, and that failure is reported as a clean FAILED run.
                     logger.warning("Could not generate silence track: %s", redact(str(exc)))
         cmd = ["bash", STORY_SCRIPT, edited_path, str(int(final_duration)), fallback_audio]
-        if has_captions:
+        if has_captions and subtitles_enabled:
             cmd.append(ass_path)
         cmd.extend(raw_clip_paths)
         env = dict(os.environ)
@@ -294,9 +328,20 @@ def produce_story(topic: str, duration: int = 45, logo: str = None, n_clips: int
 
 def run_story(topic: str, duration: int = 45, privacy: str = "private", keep_files: bool = False,
               logo: str = None, n_clips: int = 4, publish_at: str = None, on_progress = None,
-              upload: bool = True) -> dict:
+              upload: bool = True, archetype: str = None, emotion: str = None,
+              language: str = None, subtitles: bool = None) -> dict:
     started = time.time()
-    prod = produce_story(topic, duration=duration, logo=logo, n_clips=n_clips, on_progress=on_progress)
+    prod = produce_story(
+        topic,
+        duration=duration,
+        logo=logo,
+        n_clips=n_clips,
+        on_progress=on_progress,
+        archetype=archetype,
+        emotion=emotion,
+        language=language,
+        subtitles=subtitles
+    )
     if prod.get("status") != "SUCCESS":
         return prod
 

@@ -23,6 +23,9 @@ export interface ShortsVideoProps {
   ambientVolume?: number;
   style?: VideoStyle;
   title?: string;
+  episodeBadge?: string;
+  chapterSubtitle?: string;
+  cliffhangerCta?: string;
   logoSrc?: string;
   durationInFrames: number;
   useOriginalAudio?: boolean;

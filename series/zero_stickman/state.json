@@ -1,0 +1,36 @@
+{
+  "series_id": "zero_stickman",
+  "title": "Zero: The Wasteland Ronin",
+  "genre": "stylized_action",
+  "voice": "en-GB-RyanNeural",
+  "style": "anime",
+  "current_episode": 1,
+  "timeline_day": 1,
+  "current_era_index": 0,
+  "character": {
+    "name": "Zero",
+    "archetype": "stickman assassin",
+    "visual_identity": "stylized high-contrast pitch-black stickman warrior, glowing crimson visor slit, tattered red katana scabbard on back, twin thermal throwing daggers, dynamic motion silhouette",
+    "signature_gear": "plasma-edge katana, smoke dispersion pellets, grapple wire",
+    "physical_condition": "Flawless reflexes, crackling electrical static around hands",
+    "mental_state": "stoic, deadly precision, hunting the cybernetic warlords who burned his clan"
+  },
+  "eras": [
+    {
+      "name": "Era 1: Neon Bloodshed",
+      "subtitle": "The Hunt Begins",
+      "description": "Hunting bounty targets through rain-slicked cyberpunk slums and toxic industrial alleyways.",
+      "visual_palette": "high contrast black silhouettes, vibrant neon red and cyan backlights, speedline motion blur",
+      "duration_episodes": 15
+    }
+  ],
+  "world_state": {
+    "location": "Sector 4 Ruined Transit Hub",
+    "weather": "Dense toxic ash fall, waning daylight",
+    "threat": "Subterranean acoustic crawlers active in shadows"
+  },
+  "last_cliffhanger": null,
+  "episode_history": [],
+  "created_at": "2026-10-17 14:39:06",
+  "updated_at": "2026-10-17 14:39:06"
+}
