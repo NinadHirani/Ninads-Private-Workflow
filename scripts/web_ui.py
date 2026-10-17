@@ -586,11 +586,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                                 meta = json.load(f)
                         except Exception:
                             pass
-                    items.append({
-                        "filename": fname,
-                        "url": f"/deliverables/{fname}",
-                        "size_bytes": stat.st_size,
-                        "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
                     topic_title = meta.get("title") or meta.get("topic")
                     if not topic_title:
                         if fname.startswith("series_"):
@@ -734,28 +729,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def handle_api_create(self, payload: dict):
         global CREATION_STATE
-        raw_topic = (payload.get("topic") or "").strip()
-        if not raw_topic:
-            return self.send_json({"status": "FAILED", "error": "Topic cannot be empty"}, 400)
-
-        topic_lines = [line.strip() for line in raw_topic.splitlines() if line.strip()]
-        topic = topic_lines[0] if topic_lines else raw_topic
-        continuous = bool(payload.get("continuous", len(topic_lines) > 1))
+        series_id = (payload.get("series_id") or "kane").strip()
+        continuous = bool(payload.get("continuous", False))
 
         with CREATION_LOCK:
             if CREATION_STATE["active"]:
                 return self.send_json({"status": "FAILED", "error": f"Another creation is already running: '{CREATION_STATE['topic']}'"}, 409)
 
-            duration = int(payload.get("duration") or 45)
+            duration = int(payload.get("duration") or 40)
             privacy = payload.get("privacy") or "public"
             upload = bool(payload.get("upload", True))
-            audio_mode = payload.get("audio_mode")
 
             CREATION_STATE["active"] = True
-            CREATION_STATE["topic"] = topic
+            CREATION_STATE["topic"] = f"Series: {series_id.title()}"
             CREATION_STATE["step"] = "init"
             CREATION_STATE["status"] = "running"
-            CREATION_STATE["detail"] = f"Initializing pipeline for '{topic}'"
+            CREATION_STATE["detail"] = f"Initializing next episodic series short for {series_id.title()}..."
             CREATION_STATE["started_at"] = time.time()
             CREATION_STATE["result"] = None
             CREATION_STATE["error"] = None
@@ -766,41 +755,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         def worker():
             global CREATION_STATE
-            if audio_mode and audio_mode != "auto":
-                os.environ["AUDIO_MODE"] = audio_mode
-            elif "AUDIO_MODE" in os.environ:
-                del os.environ["AUDIO_MODE"]
-
-            context_topics = []
-            niche_context = ""
-            if os.path.exists(CONTEXT_FILE):
-                try:
-                    with open(CONTEXT_FILE, "r", encoding="utf-8") as f:
-                        cfg = json.load(f)
-                        context_topics = cfg.get("topics", [])
-                        niche_context = cfg.get("context", "")
-                except Exception:
-                    pass
-
-            from scripts.auto_run import topic_iterator
-            if len(topic_lines) > 1:
-                seed_pool = topic_lines
-            else:
-                seed_pool = [topic] + [t for t in context_topics if t != topic]
-            topic_gen = topic_iterator(seed_pool, niche_context=niche_context)
-            current_topic = topic
+            from scripts.series_pipeline import produce_episode
 
             while True:
                 with CREATION_LOCK:
                     if CREATION_STATE["stop_requested"]:
                         CREATION_STATE["active"] = False
                         CREATION_STATE["status"] = "stopped"
-                        CREATION_STATE["detail"] = f"Creation stopped. Total made: {CREATION_STATE['count']}."
+                        CREATION_STATE["detail"] = f"Series creation stopped. Total episodes made: {CREATION_STATE['count']}."
                         break
-                    CREATION_STATE["topic"] = current_topic
-                    CREATION_STATE["step"] = "init"
-                    CREATION_STATE["status"] = "running"
-                    CREATION_STATE["detail"] = f"Generating video #{CREATION_STATE['count'] + 1}: '{current_topic}'"
 
                 def on_progress(step, status, detail=None):
                     with CREATION_LOCK:
@@ -810,46 +773,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             CREATION_STATE["detail"] = str(detail)
 
                 try:
-                    result = run_story(
-                        topic=current_topic,
-                        duration=duration,
-                        privacy=privacy,
+                    res = produce_episode(
+                        series_id=series_id,
+                        target_duration=duration,
                         upload=upload,
-                        on_progress=on_progress,
+                        privacy=privacy,
+                        on_progress=on_progress
                     )
                     with CREATION_LOCK:
-                        if result.get("status") == "SUCCESS":
+                        CREATION_STATE["result"] = res
+                        if res.get("status") == "SUCCESS":
                             CREATION_STATE["count"] += 1
-                            if result.get("deliverable_file"):
-                                CREATION_STATE["deliverable_filename"] = os.path.basename(result["deliverable_file"])
-                        CREATION_STATE["result"] = result
-                        if result.get("status") != "SUCCESS":
-                            CREATION_STATE["error"] = result.get("error", "Generation failed")
+                            vfile = res.get("video_file") or res.get("video_path")
+                            if vfile:
+                                CREATION_STATE["deliverable_filename"] = os.path.basename(vfile)
+                            CREATION_STATE["detail"] = f"Episode #{res.get('episode')} produced successfully: '{res.get('title')}'!"
+                        else:
+                            CREATION_STATE["error"] = res.get("error", "Failed to produce episode")
                 except Exception as e:
                     with CREATION_LOCK:
                         CREATION_STATE["error"] = str(e)
 
                 with CREATION_LOCK:
-                    if not continuous or CREATION_STATE["stop_requested"]:
+                    if not continuous or CREATION_STATE["stop_requested"] or CREATION_STATE.get("error"):
                         CREATION_STATE["active"] = False
                         CREATION_STATE["status"] = "done" if not CREATION_STATE.get("error") else "failed"
                         break
-                    if len(topic_lines) > 1 and CREATION_STATE["count"] >= len(topic_lines) and payload.get("continuous") is None:
-                        CREATION_STATE["active"] = False
-                        CREATION_STATE["status"] = "done"
-                        break
-                    CREATION_STATE["step"] = "next_queued"
-                    CREATION_STATE["detail"] = f"Video #{CREATION_STATE['count']} completed! Preparing next video..."
-
-                time.sleep(3)
-                try:
-                    current_topic = next(topic_gen)
-                except Exception:
-                    current_topic = f"{topic} (Edition {CREATION_STATE['count'] + 1})"
+                    CREATION_STATE["detail"] = "Waiting 5s before starting next episode in continuous series..."
+                time.sleep(5)
 
         t = threading.Thread(target=worker, daemon=True)
         t.start()
-        self.send_json({"status": "STARTED", "topic": topic, "continuous": continuous})
+        self.send_json({"status": "STARTED", "series_id": series_id, "continuous": continuous})
 
     def handle_maker_start(self, payload: dict):
         if shortsctl.daemon_running():

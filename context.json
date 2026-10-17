@@ -1,24 +1,14 @@
 {
-  "context": "viral multi-niche shorts: nature ASMR, stoic wisdom, dark psychology, and future tech",
+  "context": "The Last Wanderer: Kane's Chronicles - Continuous post-apocalyptic survival series across evolving epochs",
+  "mode": "series",
+  "series_id": "kane",
   "topics": [
-    "rain on green leaves",
-    "Marcus Aurelius on controlling your mind",
-    "ocean waves sunset",
-    "Dark psychological fact about silence",
-    "How AI will change human memory forever",
-    "peaceful river stream",
-    "Stoic secret to unshakeable inner peace",
-    "The psychological paradox of human choice",
-    "waterfall in lush forest",
-    "The terrifying reality of humanoid robots",
-    "Seneca on why you waste your time",
-    "deep forest sunlight"
+    "Kane's Chronicles: Post-Apocalyptic Survival"
   ],
-  "gap_minutes": 60,
-  "schedule_public_gap_minutes": 5,
   "editing_style": "cinematic",
-  "mode": "story",
-  "duration": 20,
+  "duration": 40,
+  "gap_minutes": 5,
+  "schedule_public_gap_minutes": 5,
   "max_per_day": 30,
   "audio_mode": "auto",
   "test_key": "val123"

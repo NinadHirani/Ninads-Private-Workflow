@@ -147,16 +147,18 @@ def _try_pollinations(topic: str, category: str = "general", prompt: str = None)
     try:
         url = "https://text.pollinations.ai/"
         body = json.dumps({
-            "messages": [{"role": "user", "content": prompt}],
-            "model": "openai",
-            "jsonMode": True
+            "messages": [
+                {"role": "system", "content": "You are a viral YouTube Shorts script writer. Return ONLY a raw JSON array of strings, without markdown backticks or conversational filler."},
+                {"role": "user", "content": prompt}
+            ],
+            "model": "openai-fast"
         }).encode()
         req = urllib.request.Request(
             url,
             data=body,
             headers={"Content-Type": "application/json", "User-Agent": "AI-Shorts-Factory/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=18) as resp:
             text = resp.read().decode("utf-8")
         return _clean_lines(text)
     except Exception as exc:

@@ -89,25 +89,25 @@ NATURE_KEYWORDS = [
 ]
 
 
+def _matches_keywords(text: str, tokens: set, keywords: list) -> bool:
+    for k in keywords:
+        if " " in k or "-" in k:
+            if k in text:
+                return True
+        else:
+            if k in tokens or (len(k) > 4 and k in text):
+                return True
+    return False
+
+
 def classify_topic(topic: str) -> dict:
     """Classifies topic into genre, style, audio mode, and visual mode."""
     t = (topic or "").lower().strip()
+    tokens = set(re.findall(r"\b\w+\b", t))
     is_scene = any(k in t for k in SCENE_INDICATORS)
 
-    # 1. Nature & Pure Relaxation ASMR
-    if any(k in t for k in NATURE_KEYWORDS):
-        return {
-            "category": "nature",
-            "style": "chill",
-            "visual_mode": "stock_video",
-            "audio_mode": "nature_asmr",
-            "music_mood": "calm_ambient",
-            "voice_energy": "none",
-            "badge_title": "🎧 PUT ON HEADPHONES • 4K ASMR",
-        }
-
-    # 2. Anime & Manga (Scene with Original Voice vs Commentary)
-    if any(k in t for k in ANIME_KEYWORDS):
+    # 1. Anime & Manga (Scene with Original Voice vs Commentary)
+    if _matches_keywords(t, tokens, ANIME_KEYWORDS):
         if is_scene:
             return {
                 "category": "anime_scene",
@@ -129,7 +129,7 @@ def classify_topic(topic: str) -> dict:
                 "badge_title": topic.upper()[:40],
             }
 
-    # 3. Movie & Film (Scene with Original Voice vs Commentary)
+    # 2. Movie & Film (Scene with Original Voice vs Commentary)
     if any(k in t for k in MOVIE_KEYWORDS):
         if is_scene or any(w in t for w in ["scene", "clip", "dialogue", "movie", "film"]):
             return {
@@ -152,7 +152,7 @@ def classify_topic(topic: str) -> dict:
                 "badge_title": topic.upper()[:40],
             }
 
-    # 4. Standalone Scene Indicator (e.g. "epic fight scene", "interrogation scene")
+    # 3. Standalone Scene Indicator (e.g. "epic fight scene", "interrogation scene")
     if is_scene:
         return {
             "category": "movie_scene",
@@ -164,8 +164,25 @@ def classify_topic(topic: str) -> dict:
             "badge_title": f"🎬 {topic.upper()[:36]}",
         }
 
+    # 4. Indian / Desi Brainrot
+    try:
+        from scripts.script_archetypes import detect_language
+        lang = detect_language(topic)
+    except Exception:
+        lang = "english"
+    if lang in ("hindi", "hinglish") or any(k in t for k in ("desi", "bollywood", "jugaad", "india", "bharat")):
+        return {
+            "category": "indian_brainrot",
+            "style": "viral",
+            "visual_mode": "ai_image",
+            "audio_mode": "commentary_speech",
+            "music_mood": "phonk_hype",
+            "voice_energy": "high",
+            "badge_title": "🔥 DESI VIRAL",
+        }
+
     # 5. Stoic Philosophy & Mindset
-    if any(k in t for k in STOIC_KEYWORDS):
+    if _matches_keywords(t, tokens, STOIC_KEYWORDS):
         return {
             "category": "stoic",
             "style": "cinematic",
@@ -177,7 +194,7 @@ def classify_topic(topic: str) -> dict:
         }
 
     # 6. Future Tech & AI Horizons
-    if any(k in t for k in TECH_AI_KEYWORDS):
+    if _matches_keywords(t, tokens, TECH_AI_KEYWORDS):
         return {
             "category": "tech_ai",
             "style": "viral",
@@ -189,7 +206,7 @@ def classify_topic(topic: str) -> dict:
         }
 
     # 7. Mind-Blowing Facts & Mysteries
-    if any(k in t for k in FACTS_MYSTERY_KEYWORDS):
+    if _matches_keywords(t, tokens, FACTS_MYSTERY_KEYWORDS):
         return {
             "category": "facts_mystery",
             "style": "viral",
@@ -201,7 +218,7 @@ def classify_topic(topic: str) -> dict:
         }
 
     # 8. Gaming
-    if any(k in t for k in GAMING_KEYWORDS):
+    if _matches_keywords(t, tokens, GAMING_KEYWORDS):
         return {
             "category": "gaming",
             "style": "viral",
@@ -213,7 +230,7 @@ def classify_topic(topic: str) -> dict:
         }
 
     # 9. Sci-Fi & Cosmic Lore
-    if any(k in t for k in SCIFI_LORE_KEYWORDS):
+    if _matches_keywords(t, tokens, SCIFI_LORE_KEYWORDS):
         return {
             "category": "scifi_lore",
             "style": "cinematic",
@@ -222,6 +239,18 @@ def classify_topic(topic: str) -> dict:
             "music_mood": "cosmic_ambient",
             "voice_energy": "dramatic",
             "badge_title": topic.upper()[:40],
+        }
+
+    # 10. Nature & Pure Relaxation ASMR (Only when specifically nature-focused)
+    if _matches_keywords(t, tokens, NATURE_KEYWORDS):
+        return {
+            "category": "nature",
+            "style": "chill",
+            "visual_mode": "stock_video",
+            "audio_mode": "nature_asmr",
+            "music_mood": "calm_ambient",
+            "voice_energy": "none",
+            "badge_title": "🎧 PUT ON HEADPHONES • 4K ASMR",
         }
 
     # Default general fallback

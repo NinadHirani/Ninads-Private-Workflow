@@ -336,7 +336,7 @@ def _edge(text: str, out_dir: str, wav: str, voice: str = None, rate: str = None
         target_voice = voice or VOICES_FALLBACK[0]
         cmd = [py, "-m", "edge_tts", "--voice", target_voice]
         if rate:
-            cmd.extend(["--rate", rate])
+            cmd.append(f"--rate={rate}")
         cmd.extend(["--text", text, "--write-media", mp3, "--write-subtitles", vtt])
         subprocess.run(cmd, check=True, capture_output=True, timeout=120)
         words = _parse_vtt(vtt)

@@ -227,24 +227,49 @@ COMBINATORIAL_BANKS = {
             "Here is the secret mechanic behind {topic} that feels completely unfair.",
             "Once you understand how {topic} actually operates, everything changes.",
             "Top performers use this hidden rule of {topic} to stay untouchable.",
-            "This single breakdown will save you years of trial and error with {topic}.",
+            "Engineers uncovered an unexpected mechanic inside {topic} that alters the game.",
+            "This single breakdown will completely redefine how you understand {topic}.",
         ],
         "turnings": [
             "Step one is throwing out the conventional advice that slows everybody else down.",
-            "The core leverage comes from focusing entirely on the 20% that dictates 80% of results.",
+            "When you strip away the hype, the core architecture reveals a simple pattern.",
             "Instead of forcing brute effort, you exploit the hidden friction point.",
             "Every master in this space optimizes for momentum rather than perfection.",
+            "The real shift happened when the underlying system began compounding automatically.",
         ],
         "climaxes": [
             "This produces an exponential surge that compounds faster than anything else.",
             "While the crowd burns out, you bypass the bottleneck completely.",
             "That is the exact difference between struggling and effortless dominance.",
-            "It looks like magic from the outside, but it's just pure leverage.",
+            "It looks like magic from the outside, but it's pure mathematical leverage.",
+            "Once this mechanism is in place, the trajectory becomes irreversible.",
         ],
         "loops": [
             "Try this today and see the results for yourself.",
             "Bookmark this before you lose it in your feed.",
             "Now you have the blueprint. What will you build with it?",
+        ]
+    },
+    "emotional_journey": {
+        "hooks": [
+            "No one saw the quiet struggle unfolding behind {topic}.",
+            "Before the world applauded {topic}, there was a breaking point that almost ended it all.",
+            "If you have ever felt like giving up, {topic} will prove you wrong.",
+        ],
+        "turnings": [
+            "Behind every triumph lies a season of doubt where walking away felt like the only sane option.",
+            "When the pressure became unbearable, one quiet conviction kept the flame alive.",
+            "In the darkest hour, the decision wasn't to win, it was simply to refuse defeat.",
+        ],
+        "climaxes": [
+            "The breakthrough arrived not with a roar, but with quiet, undeniable proof.",
+            "Every scar, every setback, and every sleepless night suddenly aligned into purpose.",
+            "What began as an impossible journey transformed into an enduring testament of resilience.",
+        ],
+        "loops": [
+            "Never forget why you started, even when the road disappears.",
+            "Share this with someone who is fighting their own silent battle today.",
+            "Your breakthrough is often just one brave step past your hardest moment.",
         ]
     },
     "deep_reflection": {

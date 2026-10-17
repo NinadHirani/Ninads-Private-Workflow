@@ -223,6 +223,100 @@
       transform: translateY(-1px);
     }
 
+    .chip.active-chip {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+
+    .series-card {
+      background: rgba(18, 24, 38, 0.85);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 25px rgba(239, 68, 68, 0.1);
+      backdrop-filter: blur(20px);
+    }
+    .series-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .series-title-text {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
+    }
+    .series-ep-badge {
+      font-family: Impact, -apple-system, sans-serif;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      padding: 6px 14px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+      border-radius: 999px;
+      color: #fca5a5;
+      text-transform: uppercase;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+    }
+    .era-pill {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .cliffhanger-box {
+      background: rgba(10, 15, 25, 0.95);
+      border-left: 3px solid #ef4444;
+      padding: 12px 16px;
+      border-radius: 0 10px 10px 0;
+      margin: 8px 0 16px;
+      font-size: 14px;
+      color: #f1f5f9;
+      font-style: italic;
+      line-height: 1.5;
+    }
+    .char-status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 12px;
+    }
+    @media (max-width: 600px) {
+      .char-status-grid { grid-template-columns: 1fr; }
+    }
+    .char-status-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .char-status-label {
+      color: #94a3b8;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .char-status-val {
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
     /* The Hero Start Button */
     .btn-start {
       width: 100%;
@@ -565,10 +659,10 @@
     <header>
       <div class="brand-badge">
         <span class="dot"></span>
-        <span>AI Shorts Factory</span>
+        <span>AI Shorts Factory • Infinite Series Engine</span>
       </div>
-      <h1>Autonomous Studio</h1>
-      <p class="subtitle">Enter any topic. Backend handles script, voice, Remotion video & upload.</p>
+      <h1>Continuous Series Studio</h1>
+      <p class="subtitle">Unbroken multi-part episodic narratives. Every episode follows character continuity, era evolution, and cliffhangers.</p>
     </header>
 
     <!-- Engine Connection Status Bar -->
@@ -583,43 +677,60 @@
       </div>
     </div>
 
-    <!-- Main Clean Creation Card: Topic Area + Start Button -->
-    <div class="studio-card">
-      <div class="input-label-row">
-        <label for="topicInput" class="input-label">Topic or Story Idea</label>
-        <span class="input-hint">English, Hindi or Hinglish</span>
+    <!-- Series Archetype Switcher Pills -->
+    <div class="chips-wrap" style="margin-bottom: 16px;">
+      <div id="pill-kane" class="chip active-chip" onclick="switchSeries('kane')">🏕️ Kane: The Last Wanderer</div>
+      <div id="pill-goliath" class="chip" onclick="switchSeries('goliath')">🗿 Goliath: Subterranean Titan</div>
+      <div id="pill-zero_stickman" class="chip" onclick="switchSeries('zero_stickman')">🥷 Zero: Wasteland Ronin</div>
+    </div>
+
+    <!-- Main Series Continuity Dashboard Card -->
+    <div class="series-card">
+      <div class="series-header-row">
+        <div id="seriesTitle" class="series-title-text">The Last Wanderer: Kane's Chronicles</div>
+        <div id="seriesEpBadge" class="series-ep-badge">EPISODE #02 • DAY 3</div>
       </div>
 
-      <textarea
-        id="topicInput"
-        class="topic-textarea"
-        placeholder="Type any word, story idea, or topic...
-e.g. Marcus Aurelius on controlling your mind
-e.g. Dark psychological paradox about silence
-e.g. Bhai ye sunkar dimaag hil jayega"
-        autofocus
-      >Marcus Aurelius on controlling your mind</textarea>
+      <div id="seriesEra" class="era-pill">ERA 1: THE ASH FALL</div>
 
-      <!-- Quick Inspiration Pills -->
-      <div class="chips-wrap">
-        <div class="chip" onclick="setTopic('Marcus Aurelius on controlling your mind')">🏛️ Stoic Mindset</div>
-        <div class="chip" onclick="setTopic('The psychological paradox of silence')">🧠 Dark Psychology</div>
-        <div class="chip" onclick="setTopic('Bhai ye sunkar dimaag hil jayega')">🔥 Desi Brainrot</div>
-        <div class="chip" onclick="setTopic('How AI will change human memory forever')">🤖 Future AI</div>
-        <div class="chip" onclick="setTopic('Saitama vs Boros epic anime lore')">🥊 Anime Lore</div>
+      <div style="font-size: 11px; text-transform: uppercase; color: #ef4444; font-weight: 700; letter-spacing: 0.8px; margin-top: 10px;">
+        ⚡️ Active Cliffhanger (Resolving Next)
+      </div>
+      <div id="seriesCliffhanger" class="cliffhanger-box">
+        "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light."
       </div>
 
-      <!-- The Hero Start Button -->
-      <button id="btnStart" class="btn-start" onclick="toggleCreation()">
-        <span id="btnIcon">⚡️</span>
-        <span id="btnText">Start Creation</span>
-      </button>
+      <div class="char-status-grid">
+        <div class="char-status-item">
+          <div class="char-status-label">📍 Current Location</div>
+          <div id="charLocation" class="char-status-val">Sector 4 Ruined Transit Hub</div>
+        </div>
+        <div class="char-status-item">
+          <div class="char-status-label">🩹 Condition & Wounds</div>
+          <div id="charCondition" class="char-status-val">Bandaged shoulder wound</div>
+        </div>
+        <div class="char-status-item">
+          <div class="char-status-label">🎒 Inventory & Gear</div>
+          <div id="charGear" class="char-status-val">Combat blade, Geiger counter</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 12px; flex-direction: column;">
+        <button id="btnStart" class="btn-start" onclick="toggleCreation()">
+          <span id="btnIcon">🎬</span>
+          <span id="btnText">Produce Episode 2 (Day 3)</span>
+        </button>
+        <button id="btnContinuous" class="btn-engine-settings" style="width: 100%; padding: 12px; font-weight: 600; text-align: center;" onclick="toggleContinuous()">
+          <span>⚡️ Auto-Roll Continuous Series (Produce Next After Next)</span>
+        </button>
+      </div>
     </div>
 
     <!-- Live Execution Status Card -->
     <div id="progressCard" class="progress-card">
       <div class="progress-header">
-        <div id="progTopic" class="progress-topic">Generating Short...</div>
+        <div id="progTopic" class="progress-topic">Generating Episode...</div>
         <div id="progStatus" class="badge-status">In Progress</div>
       </div>
 
@@ -629,7 +740,7 @@ e.g. Bhai ye sunkar dimaag hil jayega"
 
       <div id="progDetail" class="progress-detail">
         <span>⚙️</span>
-        <span id="detailText">Initializing backend pipeline...</span>
+        <span id="detailText">Initializing episodic pipeline...</span>
       </div>
 
       <div id="metaTags" class="meta-tags">
@@ -637,11 +748,11 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       </div>
 
       <div class="stepper">
-        <div id="step-classify" class="step-node active">1. Concept</div>
+        <div id="step-state" class="step-node active">1. Continuity</div>
         <div id="step-script" class="step-node">2. Script</div>
         <div id="step-voiceover" class="step-node">3. Voiceover</div>
-        <div id="step-scenes" class="step-node">4. Visuals</div>
-        <div id="step-edit" class="step-node">5. Remotion</div>
+        <div id="step-visuals" class="step-node">4. HD Video</div>
+        <div id="step-render" class="step-node">5. Remotion</div>
       </div>
     </div>
 
@@ -889,9 +1000,52 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       }
     }
 
+    let currentSeries = 'kane';
+
+    async function switchSeries(seriesId) {
+      currentSeries = seriesId;
+      document.querySelectorAll('.chips-wrap .chip').forEach(c => c.classList.remove('active-chip'));
+      const activeEl = document.getElementById('pill-' + seriesId);
+      if (activeEl) activeEl.classList.add('active-chip');
+      await fetchSeriesStatus(seriesId);
+    }
+
+    async function fetchSeriesStatus(seriesId = 'kane') {
+      try {
+        const res = await apiFetch('/api/series/status?series=' + encodeURIComponent(seriesId));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.title) {
+          document.getElementById('seriesTitle').textContent = data.title;
+        }
+        const ep = data.current_episode || 1;
+        const day = data.timeline_day || 1;
+        document.getElementById('seriesEpBadge').textContent = `EPISODE #${String(ep).padStart(2, '0')} • DAY ${day}`;
+        if (data.era) {
+          document.getElementById('seriesEra').textContent = data.era.toUpperCase();
+        }
+        if (data.last_cliffhanger) {
+          document.getElementById('seriesCliffhanger').textContent = `"${data.last_cliffhanger}"`;
+        }
+        if (data.character) {
+          if (data.character.physical_condition) {
+            document.getElementById('charCondition').textContent = data.character.physical_condition;
+          }
+          if (data.character.signature_gear) {
+            document.getElementById('charGear').textContent = data.character.signature_gear;
+          }
+        }
+        const btnText = document.getElementById('btnText');
+        if (btnText && !isRunning) {
+          btnText.textContent = `Produce Episode ${ep} (Day ${day})`;
+        }
+      } catch (e) {
+        console.error('Failed to fetch series status', e);
+      }
+    }
+
     async function toggleCreation() {
       if (isRunning) {
-        // Stop request
         const btn = document.getElementById('btnStart');
         btn.disabled = true;
         btn.innerHTML = '<span>⏳</span><span>Stopping...</span>';
@@ -902,15 +1056,6 @@ e.g. Bhai ye sunkar dimaag hil jayega"
         return;
       }
 
-      const topicInput = document.getElementById('topicInput');
-      const topic = topicInput.value.trim();
-      if (!topic) {
-        alert('Please enter a topic or story idea');
-        topicInput.focus();
-        return;
-      }
-
-      // If remote host and no token set yet, request authentication first
       if (isRemoteHost && !pageToken) {
         const tokenModal = document.getElementById('tokenModal');
         tokenModal.style.display = 'flex';
@@ -920,11 +1065,11 @@ e.g. Bhai ye sunkar dimaag hil jayega"
 
       const btn = document.getElementById('btnStart');
       btn.disabled = true;
-      btn.innerHTML = '<span>⏳</span><span>Starting Backend...</span>';
+      btn.innerHTML = '<span>⏳</span><span>Starting Episode Pipeline...</span>';
 
       document.getElementById('progressCard').style.display = 'block';
       document.getElementById('playerCard').style.display = 'none';
-      document.getElementById('progTopic').textContent = topic;
+      document.getElementById('progTopic').textContent = `Producing Episode for ${currentSeries.toUpperCase()}...`;
       document.getElementById('progStatus').textContent = 'In Progress';
       document.getElementById('progStatus').className = 'badge-status';
 
@@ -933,7 +1078,7 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       try {
         const res = await apiFetch('/api/create', {
           method: 'POST',
-          body: JSON.stringify({ topic: topic, continuous: false })
+          body: JSON.stringify({ series_id: currentSeries, continuous: false })
         });
 
         if (res.ok) {
@@ -942,25 +1087,64 @@ e.g. Bhai ye sunkar dimaag hil jayega"
           startPolling();
         } else {
           const err = await res.json().catch(() => ({}));
-          let msg = err.error;
-          if (!msg) {
-            if (res.status === 404) {
-              msg = 'Backend endpoint not found on ' + (apiBase || window.location.origin) + '. Verify your engine host URL.';
-            } else if (res.status === 401) {
-              msg = 'Unauthorized: Access token rejected or expired. Please unlock with your SHORTS_UI_TOKEN.';
-              document.getElementById('tokenModal').style.display = 'flex';
-            } else {
-              msg = 'Failed to start creation (HTTP ' + res.status + ')';
-            }
-          }
+          let msg = err.error || ('Failed to start episode (HTTP ' + res.status + ')');
           alert(msg);
           updateButtonState(false);
         }
       } catch (e) {
-        alert('Connection error reaching Mac engine at ' + (apiBase || window.location.origin) + ':\n' + e.message + '\n\nMake sure your Mac is running:\npython scripts/shortsctl.py tunnel');
+        alert('Connection error reaching Mac engine at ' + (apiBase || window.location.origin) + ':\n' + e.message);
         updateButtonState(false);
       } finally {
         btn.disabled = false;
+      }
+    }
+
+    async function toggleContinuous() {
+      if (isRunning) {
+        toggleCreation();
+        return;
+      }
+
+      if (isRemoteHost && !pageToken) {
+        const tokenModal = document.getElementById('tokenModal');
+        tokenModal.style.display = 'flex';
+        document.getElementById('tokenField').focus();
+        return;
+      }
+
+      const btn = document.getElementById('btnContinuous');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span><span>Starting Auto-Roll...</span>';
+
+      document.getElementById('progressCard').style.display = 'block';
+      document.getElementById('playerCard').style.display = 'none';
+      document.getElementById('progTopic').textContent = `Continuous Auto-Roll for ${currentSeries.toUpperCase()}`;
+      document.getElementById('progStatus').textContent = 'In Progress';
+      document.getElementById('progStatus').className = 'badge-status';
+
+      resetStepper();
+
+      try {
+        const res = await apiFetch('/api/create', {
+          method: 'POST',
+          body: JSON.stringify({ series_id: currentSeries, continuous: true })
+        });
+
+        if (res.ok) {
+          isRunning = true;
+          updateButtonState(true);
+          startPolling();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || ('Failed to start continuous series (HTTP ' + res.status + ')'));
+          updateButtonState(false);
+        }
+      } catch (e) {
+        alert('Connection error: ' + e.message);
+        updateButtonState(false);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡️ Auto-Roll Continuous Series (Hands-Free)</span>';
       }
     }
 
@@ -968,10 +1152,10 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       const btn = document.getElementById('btnStart');
       if (running) {
         btn.classList.add('btn-stop');
-        btn.innerHTML = '<span>⏹</span><span>Stop Creation</span>';
+        btn.innerHTML = '<span>⏹</span><span>Stop Episode Maker</span>';
       } else {
         btn.classList.remove('btn-stop');
-        btn.innerHTML = '<span>⚡️</span><span>Start Creation</span>';
+        fetchSeriesStatus(currentSeries);
       }
     }
 
@@ -997,22 +1181,12 @@ e.g. Bhai ye sunkar dimaag hil jayega"
 
         updateStepper(state.step);
 
-        // Update Dynamic Archetype / Emotion Badges if available
-        if (state.result && state.result.steps && state.result.steps.script) {
-          const sc = state.result.steps.script;
-          const tagsDiv = document.getElementById('metaTags');
-          tagsDiv.innerHTML = '';
-          if (sc.archetype) tagsDiv.innerHTML += `<span class="tag primary">Archetype: ${sc.archetype}</span>`;
-          if (sc.emotion) tagsDiv.innerHTML += `<span class="tag">Tone: ${sc.emotion}</span>`;
-          if (sc.language) tagsDiv.innerHTML += `<span class="tag">Lang: ${sc.language}</span>`;
-          if (sc.writer) tagsDiv.innerHTML += `<span class="tag">AI: ${sc.writer}</span>`;
-        }
-
         // Check if finished
         if (!state.active) {
           clearInterval(pollInterval);
           isRunning = false;
           updateButtonState(false);
+          fetchSeriesStatus(currentSeries);
 
           if (state.status === 'done' || (state.result && state.result.status === 'SUCCESS')) {
             document.getElementById('progStatus').textContent = 'Completed';
@@ -1033,17 +1207,18 @@ e.g. Bhai ye sunkar dimaag hil jayega"
     }
 
     function resetStepper() {
-      const nodes = ['step-classify', 'step-script', 'step-voiceover', 'step-scenes', 'step-edit'];
+      const nodes = ['step-state', 'step-script', 'step-voiceover', 'step-visuals', 'step-render'];
       nodes.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.className = 'step-node';
       });
-      document.getElementById('step-classify').className = 'step-node active';
+      const first = document.getElementById('step-state');
+      if (first) first.className = 'step-node active';
       document.getElementById('barFill').style.width = '15%';
     }
 
     function updateStepper(step) {
-      const order = ['classify', 'script', 'voiceover', 'scenes', 'edit'];
+      const order = ['state', 'script', 'voiceover', 'visuals', 'render'];
       const currentIdx = order.indexOf(step);
       if (currentIdx === -1) return;
 
@@ -1070,8 +1245,8 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       const dlLink = document.getElementById('downloadLink');
 
       let filename = state.deliverable_filename;
-      if (!filename && state.result && state.result.deliverable_file) {
-        filename = state.result.deliverable_file.split('/').pop();
+      if (!filename && state.result && state.result.video_file) {
+        filename = state.result.video_file.split('/').pop();
       }
 
       if (filename) {
@@ -1089,15 +1264,16 @@ e.g. Bhai ye sunkar dimaag hil jayega"
           videoEl.src = streamUrl;
         });
         dlLink.href = streamUrl;
-        document.getElementById('playerTopic').textContent = state.topic;
+        document.getElementById('playerTopic').textContent = state.topic || (state.result && state.result.title) || 'Episode Video';
         playerCard.style.display = 'block';
         videoEl.play().catch(() => {});
       }
     }
 
-    // Check status & connection health on initial load
+    // Check status & connection health and load series status on initial load
     window.addEventListener('DOMContentLoaded', () => {
       checkConnectionHealth();
+      fetchSeriesStatus('kane');
       pollStatus();
       setInterval(checkConnectionHealth, 10000);
     });

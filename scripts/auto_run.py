@@ -114,10 +114,24 @@ def _sleep_with_stop(total_seconds, check_stop):
 
 from scripts.logger import is_topic_used, mark_topic_used, get_used_topics
 
-PROCEDURAL_ANGLES = [
-    "mysteries of", "untold secrets of", "breathtaking views of", "hidden beauty of",
-    "deep silence of", "rare sights of", "pure nature of",
-    "cinematic journey through", "fascinating phenomena of", "calming sounds of"
+COMMENTARY_ANGLES = [
+    "The untold reality of",
+    "The hidden truth behind",
+    "The mind-blowing paradox of",
+    "What nobody tells you about",
+    "The shocking breakdown of",
+    "Deep dive into",
+    "The secret mechanics of",
+    "Why you misunderstand",
+]
+
+NATURE_ANGLES = [
+    "breathtaking views of",
+    "hidden beauty of",
+    "deep silence of",
+    "fascinating phenomena of",
+    "calming sounds of",
+    "cinematic journey through",
 ]
 
 def _gemini_url_and_headers(key: str):
@@ -156,11 +170,15 @@ Output ONLY a raw JSON array of strings, for example: ["topic 1", "topic 2"]."""
 
 def generate_procedural_topics(base_topics: list) -> list:
     generated = []
+    try:
+        from scripts.scene_generator import classify_topic
+    except ImportError:
+        classify_topic = lambda t: {"category": "general"}
     for base in base_topics:
-        for angle in PROCEDURAL_ANGLES:
+        cat = classify_topic(base).get("category", "general")
+        angles = NATURE_ANGLES if cat == "nature" else COMMENTARY_ANGLES
+        for angle in angles:
             generated.append(f"{angle} {base}")
-            generated.append(f"{base} at twilight")
-            generated.append(f"{base} early morning")
     random.shuffle(generated)
     return generated
 
@@ -190,13 +208,45 @@ def _safe_run(mode, topic, args, config, publish_at, upload_enabled):
     """Runs one Short's pipeline, converting any unexpected exception into a
     FAILED result so one bad run can never kill the continuous maker session."""
     try:
+        if mode == "series":
+            from scripts.series_pipeline import produce_episode
+            series_id = config.get("series_id") or "kane"
+            duration = int(config.get("duration", 40))
+            ep_res = produce_episode(
+                series_id=series_id,
+                target_duration=duration,
+                upload=upload_enabled,
+                privacy=args.privacy,
+                publish_at=publish_at
+            )
+            if ep_res.get("status") == "SUCCESS":
+                video_file = ep_res.get("video_file") or ep_res.get("video_path")
+                return {
+                    "status": "SUCCESS",
+                    "mode": "series",
+                    "deliverable_file": video_file,
+                    "title": ep_res.get("title"),
+                    "episode": ep_res.get("episode"),
+                    "cliffhanger": ep_res.get("cliffhanger"),
+                    "youtube_url": ep_res.get("youtube_url", ""),
+                    "instagram_url": ep_res.get("instagram_url", ""),
+                }
+            return {"status": "FAILED", "mode": "series", "error": ep_res.get("error", "Series generation failed")}
+
         if mode == "story":
             from scripts.story_pipeline import run_story
-            return run_story(topic, duration=int(config.get("duration", 45)),
-                             privacy=args.privacy,
-                             logo=os.getenv("LOGO_FILE") or None,
-                             publish_at=publish_at,
-                             upload=upload_enabled)
+            return run_story(
+                topic,
+                duration=int(config.get("duration", 45)),
+                privacy=args.privacy,
+                logo=os.getenv("LOGO_FILE") or None,
+                publish_at=publish_at,
+                upload=upload_enabled,
+                archetype=config.get("archetype") or None,
+                emotion=config.get("emotion") or None,
+                language=config.get("language") or None,
+                subtitles=config.get("subtitles")
+            )
         return run(topic, privacy=args.privacy, style=config.get("editing_style") or None,
                    publish_at=publish_at, upload=upload_enabled)
     except Exception as exc:
@@ -214,7 +264,12 @@ def main():
     with open(args.context, encoding="utf-8") as f:
         config = json.load(f)
 
+    mode = (config.get("mode") or "clip").strip().lower()
     topics = [t.strip() for t in config.get("topics", []) if t and t.strip()]
+    if mode == "series":
+        series_id = config.get("series_id") or "kane"
+        topics = [f"Series: {series_id}"]
+
     gap = max(0, int(config.get("gap_minutes", 5))) * 60
     max_per_day = int(config.get("max_per_day", 0)) or None
     upload_enabled = bool(config.get("upload", True) and not config.get("local_only", False))
@@ -226,12 +281,12 @@ def main():
     state["started_at"] = state.get("started_at") or datetime.datetime.now().isoformat()
     save_state(state)
 
-    logger.info("Maker started: %d topic(s), gap %d min, uploads %s%s (local deliverables active).",
-                len(topics), gap // 60,
+    logger.info("Maker started (mode: %s): gap %d min, uploads %s%s (local deliverables active).",
+                mode, gap // 60,
                 args.privacy if upload_enabled else "OFF (local only)",
                 f", max {max_per_day}/day" if max_per_day else "")
     schedule_gap_min = int(config.get("schedule_public_gap_minutes", config.get("gap_minutes", 5)))
-    next_topics = topic_iterator(topics, niche_context=config.get("context", ""))
+    next_topics = topic_iterator(topics, niche_context=config.get("context", "")) if mode != "series" else None
 
     while not stop_requested():
         today = datetime.date.today().isoformat()
@@ -243,7 +298,16 @@ def main():
                 break
             continue
 
-        topic = next(next_topics)
+        if mode == "series":
+            from scripts.series_manager import load_series
+            s_id = config.get("series_id") or "kane"
+            s_state = load_series(s_id)
+            cur_ep = s_state.get("current_episode", 1) if s_state else 1
+            cur_day = s_state.get("timeline_day", 1) if s_state else 1
+            topic = f"{s_id.title()} - Episode {cur_ep} (Day {cur_day})"
+        else:
+            topic = next(next_topics)
+
         logger.info("Making a Short on '%s' (%d made before this one)...", topic, len(state["runs"]))
 
         publish_at = None
@@ -252,7 +316,6 @@ def main():
                           datetime.timedelta(minutes=schedule_gap_min)).strftime("%Y-%m-%dT%H:%M:%SZ")
             logger.info("Scheduled publish: private until %s (%d min gap), then public", publish_at, schedule_gap_min)
 
-        mode = (config.get("mode") or "clip").strip().lower()
         result = _safe_run(mode, topic, args, config, publish_at, upload_enabled)
 
         is_success = result.get("status") in ("SUCCESS", "SUCCESS_LOCAL")

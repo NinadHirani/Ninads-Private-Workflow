@@ -98,24 +98,28 @@ def test_procedural_series_writer(temp_series_dir):
 
 def test_mock_produce_episode_and_batch(monkeypatch, temp_series_dir):
     monkeypatch.setenv("SHORTS_MOCK", "1")
+    temp_out = tempfile.mkdtemp(prefix="test_deliverables_")
 
-    # Produce Episode 1
-    ep1_res = series_pipeline.produce_episode(series_id="mock_kane", preset="kane")
-    assert ep1_res["status"] == "SUCCESS"
-    assert ep1_res["episode"] == 1
-    assert os.path.exists(ep1_res["video_file"])
-    assert os.path.exists(ep1_res["metadata_file"])
+    try:
+        # Produce Episode 1
+        ep1_res = series_pipeline.produce_episode(series_id="mock_kane", preset="kane", output_dir=temp_out)
+        assert ep1_res["status"] == "SUCCESS"
+        assert ep1_res["episode"] == 1
+        assert os.path.exists(ep1_res["video_file"])
+        assert os.path.exists(ep1_res["metadata_file"])
 
-    st = series_manager.load_series("mock_kane")
-    assert st["current_episode"] == 2
-    assert st["last_cliffhanger"] == ep1_res["cliffhanger"]
+        st = series_manager.load_series("mock_kane")
+        assert st["current_episode"] == 2
+        assert st["last_cliffhanger"] == ep1_res["cliffhanger"]
 
-    # Produce Batch of 2 more episodes (Episodes 2 & 3)
-    batch_res = series_pipeline.produce_batch(series_id="mock_kane", count=2)
-    assert len(batch_res) == 2
-    assert batch_res[0]["episode"] == 2
-    assert batch_res[1]["episode"] == 3
+        # Produce Batch of 2 more episodes (Episodes 2 & 3)
+        batch_res = series_pipeline.produce_batch(series_id="mock_kane", count=2, output_dir=temp_out)
+        assert len(batch_res) == 2
+        assert batch_res[0]["episode"] == 2
+        assert batch_res[1]["episode"] == 3
 
-    st_after = series_manager.load_series("mock_kane")
-    assert st_after["current_episode"] == 4
-    assert len(st_after["episode_history"]) == 3
+        st_after = series_manager.load_series("mock_kane")
+        assert st_after["current_episode"] == 4
+        assert len(st_after["episode_history"]) == 3
+    finally:
+        shutil.rmtree(temp_out, ignore_errors=True)

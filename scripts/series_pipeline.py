@@ -72,15 +72,132 @@ def _get_audio_duration_sec(audio_file: str) -> float:
         return max(10.0, min(90.0, size / 176400.0))
 
 
+from scripts.content_finder import find_videos, _pick_file, mock_mode
+from scripts.downloader import download_video
+
+
+def collect_series_video_scenes(
+    ctx: Dict[str, Any],
+    episode_data: Dict[str, Any],
+    total_audio_sec: float,
+    workdir: str,
+    on_progress = None
+) -> List[Dict[str, Any]]:
+    """
+    Collects authentic high-definition 1080x1920 video clips matching the narrative beats
+    of the continuous series. Guarantees true motion video for every scene beat.
+    """
+    fps = 30
+    total_frames = int(max(15.0, total_audio_sec + 2.5) * fps)
+
+    script_lines = episode_data.get("script_lines", [])
+    n_scenes = max(4, min(5, len(script_lines) if script_lines else 5))
+    frames_per_scene = total_frames // n_scenes
+    remainder_frames = total_frames - (frames_per_scene * n_scenes)
+
+    if mock_mode():
+        sample_mp4 = os.path.join(ROOT, "tests", "sample.mp4")
+        scenes = []
+        for idx in range(n_scenes):
+            dur = frames_per_scene + (remainder_frames if idx == n_scenes - 1 else 0)
+            scenes.append({
+                "type": "video",
+                "src": sample_mp4,
+                "durationInFrames": dur,
+            })
+        return scenes
+
+    series_id = ctx.get("series_id", "kane")
+    if "goliath" in series_id:
+        beat_queries = [
+            ["dark cave cavern magma", "volcano lava rocks smoke", "underground cave dark rocks"],
+            ["cave rocks seismic tremor", "subterranean tunnel stone", "ancient stones glowing cave"],
+            ["earthquake cracking rocks debris", "crashing rocks cave in", "underground cavern waterfall"],
+            ["destroyed city overgrown ruins", "storm clouds lightning mountains", "giant shadows dark mountains"],
+            ["colossal beast shadow clouds", "magma glow volcanic crater", "mysterious glowing runes ancient"],
+        ]
+    elif "stickman" in series_id or "zero" in series_id:
+        beat_queries = [
+            ["cyberpunk dark rainy street neon", "ninja silhouette running dark", "cyberpunk alley rain"],
+            ["katana sword draw cinematic", "martial arts fighting shadow", "cyberpunk neon lights night"],
+            ["dark industrial factory steam", "rooftop night city skyline", "laser lights dark smoke"],
+            ["sparks flying metal explosion", "fast motion shadow combat", "cyberpunk red neon lights"],
+            ["cyberpunk city lightning storm", "neon glow sword reflection", "cyberpunk skyline dark"],
+        ]
+    else:
+        # Kane Chronicles / Apocalypse Survival
+        beat_queries = [
+            ["apocalypse survivor ruins", "lone wanderer wasteland ruins", "post apocalyptic dust"],
+            ["tactical soldier ruins post apocalypse", "man walking destroyed city rubble", "ruined abandoned corridor"],
+            ["underground concrete bunker dark tunnel", "abandoned vault industrial ruins", "dark subway tunnel flashlight"],
+            ["earthquake dust smoke rubble", "smoke and dust destruction disaster", "falling concrete debris earthquake"],
+            ["mysterious glowing light anomaly", "alien artifact purple sci fi glow", "dark sci fi glowing structure"],
+        ]
+
+    scenes = []
+    used_links = set()
+
+    for idx in range(n_scenes):
+        dur = frames_per_scene + (remainder_frames if idx == n_scenes - 1 else 0)
+        clip_path = os.path.join(workdir, f"series_scene_{idx}.mp4")
+        queries_for_beat = beat_queries[idx % len(beat_queries)]
+
+        if callable(on_progress):
+            on_progress("visuals", "running", f"Finding authentic HD video for scene {idx + 1}/{n_scenes}")
+
+        found_clip = False
+        for q in queries_for_beat:
+            try:
+                candidates = find_videos(q, page=1)
+                for cand in candidates:
+                    files = cand.get("video_files", [])
+                    best_file, _ = _pick_file(files)
+                    if not best_file or not best_file.get("link"):
+                        continue
+                    link = best_file["link"]
+                    if link in used_links:
+                        continue
+                    dl_res = download_video(link, output_path=clip_path, timeout=30)
+                    if dl_res.get("status") == "SUCCESS" and os.path.exists(clip_path) and os.path.getsize(clip_path) > 50000:
+                        used_links.add(link)
+                        scenes.append({
+                            "type": "video",
+                            "src": clip_path,
+                            "durationInFrames": dur,
+                        })
+                        found_clip = True
+                        break
+            except Exception as e:
+                logger.warning("Error fetching scene video for query '%s': %s", q, redact(str(e)))
+            if found_clip:
+                break
+
+        if not found_clip:
+            logger.warning("No fresh video found for scene %d; using sample fallback clip", idx)
+            sample_mp4 = os.path.join(ROOT, "tests", "sample.mp4")
+            scenes.append({
+                "type": "video",
+                "src": sample_mp4,
+                "durationInFrames": dur,
+            })
+
+    return scenes
+
+
 def produce_episode(
     series_id: str = "kane",
     preset: str = "kane",
     target_duration: int = 40,
+    output_dir: str = None,
+    upload: bool = False,
+    privacy: str = "private",
+    publish_at: str = None,
     on_progress = None
 ) -> Dict[str, Any]:
     """
     Produces a single continuous episode, maintaining unbroken continuity
-    with all previous episodes and updating series state.
+    with all previous episodes and updating series state. Uses authentic HD
+    video footage clips for every scene.
     """
     started = time.time()
     workdir = tempfile.mkdtemp(prefix=f"series_{series_id}_")
@@ -119,54 +236,15 @@ def produce_episode(
         total_audio_sec = _get_audio_duration_sec(vo_wav)
         notify("voiceover", "done", f"Audio duration: {total_audio_sec:.1f}s, {len(words)} words")
 
-        # 4. Generate Visual Scenes with Character Anchors
-        notify("visuals", "running", f"Generating photorealistic scenes for {ctx['character_name']}")
-        prompts = episode_data.get("scene_prompts", [])
-        fps = 30
-        total_frames = int(max(15.0, total_audio_sec + 2.5) * fps)
-        n_scenes = max(1, len(prompts))
-        frames_per_scene = total_frames // n_scenes
-        remainder_frames = total_frames - (frames_per_scene * n_scenes)
-
-        scenes = []
-        is_mock = mock_mode()
-
-        for idx, p in enumerate(prompts):
-            img_path = os.path.join(workdir, f"scene_{idx}.jpg")
-            dur = frames_per_scene + (remainder_frames if idx == n_scenes - 1 else 0)
-
-            if is_mock:
-                sample_mp4 = os.path.join(ROOT, "tests", "sample.mp4")
-                scenes.append({
-                    "type": "video" if os.path.exists(sample_mp4) else "image",
-                    "src": sample_mp4 if os.path.exists(sample_mp4) else img_path,
-                    "durationInFrames": dur,
-                })
-                continue
-
-            # In production: download photorealistic scene from Pollinations
-            success = download_pollinations_image(p, img_path)
-            if success and os.path.exists(img_path) and os.path.getsize(img_path) > 1000:
-                scenes.append({
-                    "type": "image",
-                    "src": img_path,
-                    "durationInFrames": dur,
-                })
-            else:
-                logger.warning("Could not download scene %d, using local sample fallback", idx)
-                sample_mp4 = os.path.join(ROOT, "tests", "sample.mp4")
-                scenes.append({
-                    "type": "video" if os.path.exists(sample_mp4) else "image",
-                    "src": sample_mp4,
-                    "durationInFrames": dur,
-                })
-
-        notify("visuals", "done", f"Assembled {len(scenes)} scenes")
+        # 4. Assemble Authentic Dynamic Video Scenes
+        notify("visuals", "running", f"Collecting cinematic HD video clips for {ctx['character_name']}")
+        scenes = collect_series_video_scenes(ctx, episode_data, total_audio_sec, workdir, on_progress=notify)
+        notify("visuals", "done", f"Assembled {len(scenes)} dynamic HD video scenes")
 
         # 5. Programmatic Remotion Video Render
         notify("render", "running", "Rendering video with Remotion...")
         ts = time.strftime("%Y%m%d_%H%M%S")
-        deliv_dir = os.path.join(ROOT, "deliverables")
+        deliv_dir = output_dir or os.path.join(ROOT, "deliverables")
         os.makedirs(deliv_dir, exist_ok=True)
         out_mp4 = os.path.join(deliv_dir, f"series_{series_id}_ep{ep_num:03d}_{ts}.mp4")
 
@@ -174,6 +252,12 @@ def produce_episode(
         ep_badge = f"EPISODE {ep_num:02d} • DAY {day_num}"
         ch_sub = f"{ctx['era_name']} • {episode_data.get('title')}".upper()
         next_cta = f"PART {ep_num + 1} DROPS TOMORROW • SUBSCRIBE"
+
+        cinematic_music = os.path.join(ROOT, "music", "cinematic_epic.mp3")
+        music_file = cinematic_music if os.path.exists(cinematic_music) else None
+
+        ambient_rain = os.path.join(ROOT, "music", "rain_ambient.mp3")
+        ambient_file = ambient_rain if os.path.exists(ambient_rain) else None
 
         render_res = render_with_remotion(
             scenes=scenes,
@@ -185,6 +269,10 @@ def produce_episode(
             chapter_subtitle=ch_sub,
             cliffhanger_cta=next_cta,
             style=state.get("style", "cinematic"),
+            music_src=music_file,
+            music_volume=0.20,
+            ambient_src=ambient_file,
+            ambient_volume=0.15,
             fallback_text=" ".join(episode_data.get("script_lines", [])),
             show_captions=True,
             on_progress=notify,
@@ -231,6 +319,45 @@ def produce_episode(
         with open(meta_json, "w", encoding="utf-8") as f:
             json.dump(meta_data, f, indent=2)
 
+        # 9. Direct Upload to YouTube & Instagram (if requested)
+        yt_upload = {}
+        if upload:
+            try:
+                from scripts.run_pipeline import publish_youtube_video, publish_instagram_video
+                from scripts.uploader import enqueue_dual_upload
+
+                serial_title = f"{state.get('title', 'Kane')}: Ep {ep_num} - {episode_data.get('title')} #Shorts"
+                if len(serial_title) > 95:
+                    serial_title = f"Kane Ep {ep_num}: {episode_data.get('title')} #Shorts"[:95]
+
+                serial_desc = (
+                    f"{state.get('title', 'Kane')} — Episode {ep_num} (Day {day_num})\n"
+                    f"{ctx['era_name']}\n\n"
+                    f"{episode_data.get('summary')}\n\n"
+                    f"Cliffhanger: {episode_data.get('cliffhanger')}\n\n"
+                    f"Subscribe for Episode {ep_num + 1} dropping tomorrow!\n\n"
+                    f"#Shorts #Series #Apocalypse #Survival #SciFi #Story"
+                )
+
+                notify("upload", "running", "Publishing series episode to YouTube...")
+                yt_upload = publish_youtube_video(
+                    out_mp4,
+                    title=serial_title,
+                    description=serial_desc,
+                    tags=["Kane", "Shorts", "Series", "Apocalypse", "Survival", "SciFi", "Story", "Cinematic"],
+                    privacy=privacy,
+                    publish_at=publish_at,
+                    on_progress=notify,
+                )
+                if yt_upload.get("status") == "SUCCESS":
+                    notify("upload", "done", f"Uploaded to YouTube: {yt_upload.get('url')}")
+                else:
+                    queue_reason = "YouTube daily quota reached" if yt_upload.get("status") == "QUOTA_EXCEEDED" else yt_upload.get("error", "YouTube upload failed")
+                    enqueue_dual_upload(out_mp4, meta_json, reason=queue_reason)
+                    notify("upload", "done", f"Preserved for dual upload: {queue_reason}")
+            except Exception as e:
+                logger.warning("Upload step error: %s", redact(str(e)))
+
         total_elapsed = round(time.time() - started, 2)
         logger.info("Successfully produced Episode #%d for series '%s' in %.1fs -> %s",
                     ep_num, series_id, total_elapsed, out_mp4)
@@ -244,6 +371,9 @@ def produce_episode(
             "summary": episode_data.get("summary"),
             "cliffhanger": episode_data.get("cliffhanger"),
             "video_file": out_mp4,
+            "video_path": out_mp4,
+            "file_path": out_mp4,
+            "youtube_url": yt_upload.get("url", ""),
             "metadata_file": meta_json,
             "duration_sec": render_res.get("duration_sec"),
             "elapsed_sec": total_elapsed,
@@ -258,6 +388,7 @@ def produce_batch(
     preset: str = "kane",
     count: int = 3,
     target_duration: int = 40,
+    output_dir: str = None,
     on_progress = None
 ) -> List[Dict[str, Any]]:
     """
@@ -272,6 +403,7 @@ def produce_batch(
             series_id=series_id,
             preset=preset,
             target_duration=target_duration,
+            output_dir=output_dir,
             on_progress=on_progress
         )
         results.append(res)

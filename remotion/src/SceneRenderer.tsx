@@ -15,7 +15,14 @@ const resolveMediaSrc = (src: string): string => {
   if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')) {
     return src;
   }
-  return staticFile(src);
+  if (src.startsWith('/Users') || src.startsWith('/home') || src.startsWith('C:') || src.startsWith('D:')) {
+    const parts = src.split(/public[/\\]+/);
+    if (parts.length > 1) {
+      return staticFile(parts[1].replace(/^[/\\]+/, ''));
+    }
+    return '';
+  }
+  return staticFile(src.replace(/^[/\\]+/, ''));
 };
 
 const SingleScene: React.FC<{
@@ -84,6 +91,7 @@ const SingleScene: React.FC<{
         {scene.type === 'video' ? (
           <Video
             src={mediaSrc}
+            loop
             volume={sceneVolume}
             style={{
               width: '100%',

@@ -4,8 +4,8 @@
   "genre": "gritty_survival",
   "voice": "en-US-ChristopherNeural",
   "style": "cinematic",
-  "current_episode": 1,
-  "timeline_day": 1,
+  "current_episode": 5,
+  "timeline_day": 7,
   "current_era_index": 0,
   "character": {
     "name": "Kane",
@@ -50,8 +50,49 @@
     "weather": "Dense toxic ash fall, waning daylight",
     "threat": "Subterranean acoustic crawlers active in shadows"
   },
-  "last_cliffhanger": null,
-  "episode_history": [],
+  "last_cliffhanger": "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light.",
+  "episode_history": [
+    {
+      "episode": 1,
+      "day": 1,
+      "title": "Day 1: Echoes in the Ash",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light.",
+      "timestamp": "2026-10-17 15:58:07",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep001_20261017_155336.mp4"
+    },
+    {
+      "episode": 2,
+      "day": 3,
+      "title": "Day 3: The Breach",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "From the pitch black rafters above, two crimson optic sensors ignited directly over his head.",
+      "timestamp": "2026-10-17 16:04:49",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep002_20261017_160036.mp4"
+    },
+    {
+      "episode": 3,
+      "day": 4,
+      "title": "Day 4: The Chittering",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "From the pitch black rafters above, two crimson optic sensors ignited directly over his head.",
+      "timestamp": "2026-10-17 16:24:03",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep003_20261017_161805.mp4"
+    },
+    {
+      "episode": 4,
+      "day": 6,
+      "title": "Day 6: The Breach",
+      "era": "Era 1: The Ash Fall",
+      "summary": "Kane pushed through Sector 4 Ruined Transit Hub under Era 1: The Ash Fall, encountering anomalous signals and facing unexpected danger.",
+      "cliffhanger": "A massive seismic tremor cracked the vault floor in two, exposing an obsidian structure humming with purple light.",
+      "timestamp": "2026-10-17 16:40:08",
+      "video_file": "/Users/ninadhirani/Downloads/n8n youtube/deliverables/series_kane_ep004_20261017_163349.mp4"
+    }
+  ],
   "created_at": "2026-10-17 14:38:22",
-  "updated_at": "2026-10-17 14:38:22"
+  "updated_at": "2026-10-17 16:40:08"
 }

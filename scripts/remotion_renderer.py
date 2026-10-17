@@ -151,7 +151,7 @@ def render_with_remotion(
                     relative_src = f"assets/{run_id}/{staged_name}"
                 except Exception as e:
                     logger.warning("Could not stage video clip %s: %s", src_path, redact(str(e)))
-                    relative_src = src_path
+                    relative_src = ""
                 processed_scenes.append({
                     "type": "video",
                     "src": relative_src,
@@ -159,9 +159,11 @@ def render_with_remotion(
                     "volume": sc_vol,
                 })
             else:
+                raw = sc.get("src", "")
+                safe_src = raw if (raw.startswith("data:") or raw.startswith("http")) else ""
                 processed_scenes.append({
                     "type": sc["type"],
-                    "src": sc["src"],
+                    "src": safe_src,
                     "durationInFrames": sc["durationInFrames"],
                     "volume": sc_vol,
                 })
