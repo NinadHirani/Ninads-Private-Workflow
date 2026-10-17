@@ -493,6 +493,62 @@
       outline: none;
     }
 
+    /* Engine Connection Bar */
+    .engine-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(18, 24, 38, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px 16px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(16px);
+      font-size: 13px;
+    }
+    .engine-bar-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .engine-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+    }
+    .engine-dot.connected {
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+    .engine-dot.disconnected {
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+    }
+    .btn-engine-settings {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+    .btn-engine-settings:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
     @media (max-width: 480px) {
       body { padding: 24px 14px 40px; }
       h1 { font-size: 30px; }
@@ -514,6 +570,15 @@
       <h1>Autonomous Studio</h1>
       <p class="subtitle">Enter any topic. Backend handles script, voice, Remotion video & upload.</p>
     </header>
+
+    <!-- Engine Connection Status Bar -->
+    <div id="engineBar" class="engine-bar">
+      <div class="engine-bar-status">
+        <span id="engineDot" class="engine-dot"></span>
+        <span id="engineText">Checking connection to engine...</span>
+      </div>
+      <button type="button" class="btn-engine-settings" onclick="openEngineSettings()">⚙️ Host Settings</button>
+    </div>
 
     <!-- Main Clean Creation Card: Topic Area + Start Button -->
     <div class="studio-card">
@@ -589,25 +654,81 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       <div>
         <a id="downloadLink" class="download-btn" href="#" download>
           <span>📥</span> Download 1080x1920 Video
-        </a>
+        </a>  <!-- Engine Settings Modal -->
+  <div id="engineModal" class="token-modal">
+    <div class="token-box">
+      <h3 style="margin-bottom: 8px;">Mac Engine Connection</h3>
+      <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">Configure the target Mac host and access token for remote creation.</p>
+
+      <div style="text-align: left; margin-bottom: 12px;">
+        <label style="font-size: 12px; color: #94a3b8; font-weight: 600;">Engine Host URL</label>
+        <input type="text" id="engineHostInput" class="token-input" style="margin: 6px 0 12px;" placeholder="https://ninad-shorts.loca.lt" />
+      </div>
+
+      <div style="text-align: left; margin-bottom: 12px;">
+        <label style="font-size: 12px; color: #94a3b8; font-weight: 600;">Access Token (SHORTS_UI_TOKEN)</label>
+        <input type="password" id="apiTokenInput" class="token-input" style="margin: 6px 0;" placeholder="Token from your Mac .env" />
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button type="button" onclick="saveEngineSettings()" class="btn-start" style="flex: 1; padding: 12px 14px; font-size: 14px;">Save & Connect</button>
+        <button type="button" onclick="useDefaultTunnel()" class="btn-secondary" style="padding: 12px 14px; font-size: 13px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer;">Default Tunnel</button>
+      </div>
+      <div style="margin-top: 14px;">
+        <button type="button" onclick="closeEngineSettings()" style="background: none; border: none; color: #64748b; font-size: 13px; cursor: pointer;">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Token Modal (Shown only if server explicitly requests auth) -->
+  <!-- Token Modal (Shown if server explicitly requests auth) -->
   <div id="tokenModal" class="token-modal">
     <div class="token-box">
       <h3 style="margin-bottom: 8px;">Unlock Studio</h3>
-      <p style="font-size: 13px; color: #94a3b8;">Paste access token to control creation.</p>
+      <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">Enter your <code>SHORTS_UI_TOKEN</code> from your Mac's <code>.env</code> file to authenticate this session.</p>
       <input type="password" id="tokenField" class="token-input" placeholder="Access token" />
-      <button onclick="establishSession()" class="btn-start" style="padding: 12px;">Unlock</button>
+      <div style="display: flex; gap: 8px;">
+        <button onclick="handleTokenSubmit()" class="btn-start" style="flex: 1; padding: 12px;">Unlock & Continue</button>
+        <button onclick="document.getElementById('tokenModal').style.display='none'" class="btn-secondary" style="padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer;">Cancel</button>
+      </div>
     </div>
   </div>
 
   <script>
+    const DEFAULT_REMOTE_BACKEND = 'https://ninad-shorts.loca.lt';
+    let apiBase = localStorage.getItem('shorts_factory_api_base');
+    const isRemoteHost = location.hostname.includes('vercel.app') || (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
+
+    if (isRemoteHost) {
+      if (!apiBase || (location.protocol === 'https:' && apiBase.startsWith('http://'))) {
+        apiBase = DEFAULT_REMOTE_BACKEND;
+        localStorage.setItem('shorts_factory_api_base', apiBase);
+      }
+    } else if (apiBase === null) {
+      apiBase = '';
+    }
+
+    function apiUrl(path) {
+      if (!apiBase) return path;
+      return apiBase.replace(/\/+$/, '') + path;
+    }
+
     let isRunning = false;
     let pollInterval = null;
     let pageToken = '';
+
+    function savedToken() {
+      return pageToken;
+    }
+
+    function apiHeaders() {
+      const h = {
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true'
+      };
+      const tok = savedToken();
+      if (tok) h['X-Shorts-Token'] = tok;
+      return h;
+    }
 
     function setTopic(text) {
       const el = document.getElementById('topicInput');
@@ -615,13 +736,80 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       el.focus();
     }
 
-    async function apiFetch(path, options = {}) {
-      const headers = options.headers || {};
-      if (pageToken) {
-        headers['X-Shorts-Token'] = pageToken;
+    function openEngineSettings() {
+      const modal = document.getElementById('engineModal');
+      const input = document.getElementById('engineHostInput');
+      if (input) input.value = apiBase || '';
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeEngineSettings() {
+      const modal = document.getElementById('engineModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function saveEngineSettings() {
+      const hostInput = document.getElementById('engineHostInput');
+      const tokenInput = document.getElementById('apiTokenInput');
+      if (hostInput) {
+        const val = hostInput.value.trim();
+        apiBase = val;
+        localStorage.setItem('shorts_factory_api_base', val);
       }
+      if (tokenInput && tokenInput.value.trim()) {
+        pageToken = tokenInput.value.trim();
+        tokenInput.value = '';
+        await establishSession();
+      }
+      closeEngineSettings();
+      checkConnectionHealth();
+    }
+
+    function useDefaultTunnel() {
+      apiBase = DEFAULT_REMOTE_BACKEND;
+      localStorage.setItem('shorts_factory_api_base', DEFAULT_REMOTE_BACKEND);
+      const hostInput = document.getElementById('engineHostInput');
+      if (hostInput) hostInput.value = DEFAULT_REMOTE_BACKEND;
+      closeEngineSettings();
+      checkConnectionHealth();
+    }
+
+    async function checkConnectionHealth() {
+      const dot = document.getElementById('engineDot');
+      const text = document.getElementById('engineText');
+      try {
+        const res = await apiFetch('/api/create/status');
+        if (res.ok) {
+          if (dot) { dot.className = 'engine-dot connected'; }
+          if (text) {
+            const hostDisplay = apiBase || window.location.origin;
+            text.innerHTML = `<span style="color:#34d399;">Engine Connected</span> <span style="color:#64748b; font-size:12px;">(${hostDisplay})</span>`;
+          }
+          return true;
+        } else if (res.status === 401) {
+          if (dot) { dot.className = 'engine-dot'; }
+          if (text) {
+            text.innerHTML = `<span style="color:#fbbf24;">Engine Online (Authentication Required)</span>`;
+          }
+          return false;
+        } else {
+          throw new Error('HTTP ' + res.status);
+        }
+      } catch (err) {
+        if (dot) { dot.className = 'engine-dot disconnected'; }
+        if (text) {
+          text.innerHTML = `<span style="color:#f87171;">Engine Offline</span> <span style="color:#94a3b8; font-size:12px;">(Run 'python scripts/shortsctl.py tunnel' on Mac)</span>`;
+        }
+        return false;
+      }
+    }
+
+    async function apiFetch(path, options = {}) {
+      const url = apiUrl(path);
+      const headers = Object.assign(apiHeaders(), options.headers || {});
       options.headers = headers;
-      const res = await fetch(path, options);
+      options.credentials = 'include';
+      const res = await fetch(url, options);
       if (res.status === 401) {
         document.getElementById('tokenModal').style.display = 'flex';
       }
@@ -629,19 +817,49 @@ e.g. Bhai ye sunkar dimaag hil jayega"
     }
 
     async function establishSession() {
+      const tokenField = document.getElementById('tokenField');
+      const val = tokenField ? tokenField.value.trim() : pageToken;
+      if (val) {
+        pageToken = val;
+        if (tokenField) tokenField.value = '';
+      }
+      if (!pageToken) return false;
+      try {
+        const res = await fetch(apiUrl('/api/session'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Bypass-Tunnel-Reminder': 'true',
+            'X-Shorts-Token': pageToken
+          },
+          body: JSON.stringify({ token: pageToken }),
+          credentials: 'include'
+        });
+        if (res.ok) {
+          document.getElementById('tokenModal').style.display = 'none';
+          checkConnectionHealth();
+          return true;
+        } else {
+          return false;
+        }
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function handleTokenSubmit() {
       const val = document.getElementById('tokenField').value.trim();
-      if (!val) return;
+      if (!val) {
+        alert('Please enter your access token');
+        return;
+      }
       pageToken = val;
-      const res = await fetch('/api/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: val })
-      });
-      if (res.ok) {
+      const ok = await establishSession();
+      if (ok) {
         document.getElementById('tokenModal').style.display = 'none';
         toggleCreation();
       } else {
-        alert('Invalid access token');
+        alert('Invalid access token. Please check SHORTS_UI_TOKEN in your .env');
       }
     }
 
@@ -653,9 +871,8 @@ e.g. Bhai ye sunkar dimaag hil jayega"
         btn.innerHTML = '<span>⏳</span><span>Stopping...</span>';
         await apiFetch('/api/create/stop', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: '{}'
-        });
+        }).catch(console.error);
         return;
       }
 
@@ -664,6 +881,14 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       if (!topic) {
         alert('Please enter a topic or story idea');
         topicInput.focus();
+        return;
+      }
+
+      // If remote host and no token set yet, request authentication first
+      if (isRemoteHost && !pageToken) {
+        const tokenModal = document.getElementById('tokenModal');
+        tokenModal.style.display = 'flex';
+        document.getElementById('tokenField').focus();
         return;
       }
 
@@ -682,7 +907,6 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       try {
         const res = await apiFetch('/api/create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ topic: topic, continuous: false })
         });
 
@@ -692,11 +916,22 @@ e.g. Bhai ye sunkar dimaag hil jayega"
           startPolling();
         } else {
           const err = await res.json().catch(() => ({}));
-          alert(err.error || 'Failed to start creation');
+          let msg = err.error;
+          if (!msg) {
+            if (res.status === 404) {
+              msg = 'Backend endpoint not found on ' + (apiBase || window.location.origin) + '. Verify your engine host URL.';
+            } else if (res.status === 401) {
+              msg = 'Unauthorized: Access token rejected or expired. Please unlock with your SHORTS_UI_TOKEN.';
+              document.getElementById('tokenModal').style.display = 'flex';
+            } else {
+              msg = 'Failed to start creation (HTTP ' + res.status + ')';
+            }
+          }
+          alert(msg);
           updateButtonState(false);
         }
       } catch (e) {
-        alert('Connection error: ' + e.message);
+        alert('Connection error reaching Mac engine at ' + (apiBase || window.location.origin) + ':\n' + e.message + '\n\nMake sure your Mac is running:\npython scripts/shortsctl.py tunnel');
         updateButtonState(false);
       } finally {
         btn.disabled = false;
@@ -790,8 +1025,9 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       document.getElementById('barFill').style.width = pct + '%';
 
       order.forEach((s, idx) => {
-        const el = document.getElementById('step-' + s);
+        const el = document.getElementById(`step-${s}`);
         if (!el) return;
+
         if (idx < currentIdx) {
           el.className = 'step-node completed';
         } else if (idx === currentIdx) {
@@ -813,8 +1049,9 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       }
 
       if (filename) {
-        const streamUrl = `/deliverables/${filename}`;
-        apiFetch(streamUrl).then(r => {
+        const streamPath = `/deliverables/${encodeURIComponent(filename)}`;
+        const streamUrl = apiUrl(streamPath);
+        apiFetch(streamPath).then(r => {
           if (r.ok) {
             return r.blob().then(b => {
               videoEl.src = URL.createObjectURL(b);
@@ -832,9 +1069,11 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       }
     }
 
-    // Check status on initial load in case a task is already running
+    // Check status & connection health on initial load
     window.addEventListener('DOMContentLoaded', () => {
+      checkConnectionHealth();
       pollStatus();
+      setInterval(checkConnectionHealth, 10000);
     });
   </script>
 </body>

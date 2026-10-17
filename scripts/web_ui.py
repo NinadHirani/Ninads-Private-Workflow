@@ -26,6 +26,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(ROOT, ".env"))
+except ImportError:
+    pass
+
 import scripts.shortsctl as shortsctl
 from scripts.story_pipeline import run_story
 from scripts.scene_generator import classify_topic
@@ -237,7 +243,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.do_GET(head_only=True)
 
     # --- access control -----------------------------------------------------
-    CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create")
+    CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create", "/api/create/stop")
     LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
     def _host_bare(self) -> str:
