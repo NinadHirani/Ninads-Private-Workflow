@@ -232,6 +232,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE")
         requested = (self.headers.get("Access-Control-Request-Headers") or "").strip()
@@ -243,7 +244,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.do_GET(head_only=True)
 
     # --- access control -----------------------------------------------------
-    CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create", "/api/create/stop")
+    CONTROL_PATHS = ("/api/maker/start", "/api/maker/stop", "/api/config", "/api/create", "/api/create/stop", "/api/series/next")
     LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
     def _host_bare(self) -> str:
@@ -330,20 +331,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
         Sec-Fetch shortcut: those headers are forgeable by raw clients."""
         return self._authorized()
 
-    def _cors_origin(self):
-        """Echo the request Origin only for same-origin or authorized callers;
-        cross-origin pages get no ACAO header, so browsers cannot read responses."""
+    def _cors_origin(self) -> str | None:
+        """Echo the request Origin for same-origin, authorized callers, or known dashboard origins;
+        unauthorized cross-origin pages (like evil.example) get no ACAO header."""
         origin = self.headers.get("Origin")
         if not origin:
             return None
-        if self._same_origin() or self._authorized():
+        if self._same_origin() or self._authorized() or self.path == "/api/session":
             return origin
+        try:
+            parsed_origin = urlparse(origin)
+            netloc = parsed_origin.netloc.lower().split(":", 1)[0]
+            if netloc.endswith(".vercel.app") or netloc == "vercel.app" or netloc in self.LOOPBACK_HOSTS:
+                return origin
+        except ValueError:
+            pass
         return None
 
     def _apply_cors(self):
         origin = self._cors_origin()
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
 
     # Read endpoints that expose private state (config, logs, the deliverable
@@ -415,6 +424,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.handle_api_classify(parsed)
             elif path == "/api/create/status":
                 self.handle_api_create_status()
+            elif path == "/api/series/status":
+                self.handle_api_series_status(parsed)
+            elif path == "/api/series/list":
+                self.handle_api_series_list()
             else:
                 self.send_error(404, "Not Found")
         else:
@@ -461,6 +474,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.handle_api_create(payload)
         elif path == "/api/create/stop":
             self.handle_api_create_stop()
+        elif path == "/api/series/next":
+            self.handle_api_series_next(payload)
         else:
             self.send_error(404, "Not Found")
 
@@ -576,15 +591,106 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "url": f"/deliverables/{fname}",
                         "size_bytes": stat.st_size,
                         "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "topic": meta.get("topic") or fname.replace("short_", "").rsplit("_", 1)[0].replace("_", " "),
+                    topic_title = meta.get("title") or meta.get("topic")
+                    if not topic_title:
+                        if fname.startswith("series_"):
+                            parts = fname.split("_")
+                            topic_title = f"{parts[1].title()} - Episode {parts[2].upper()}" if len(parts) >= 3 else fname
+                        else:
+                            topic_title = fname.replace("short_", "").rsplit("_", 1)[0].replace("_", " ")
+
+                    items.append({
+                        "filename": fname,
+                        "url": f"/deliverables/{fname}",
+                        "size_bytes": stat.st_size,
+                        "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "topic": topic_title,
                         "metadata": meta.get("metadata", {}),
-                        "duration": meta.get("duration", 30),
-                        "category": meta.get("category", "general"),
+                        "duration": meta.get("duration") or meta.get("duration_sec", 30),
+                        "category": meta.get("era") or meta.get("category", "general"),
                         "style": meta.get("style", "cinematic"),
                         "privacy": meta.get("privacy", "private"),
+                        "series_id": meta.get("series_id"),
+                        "episode": meta.get("episode"),
+                        "era": meta.get("era"),
+                        "cliffhanger": meta.get("cliffhanger"),
                     })
         items.sort(key=lambda x: x["created_at"], reverse=True)
         self.send_json({"items": items})
+
+    def handle_api_series_status(self, parsed):
+        qs = parse_qs(parsed.query)
+        series_id = qs.get("series", ["kane"])[0]
+        from scripts.series_manager import load_series, get_current_era, init_series
+        st = load_series(series_id) or init_series(series_id)
+        era = get_current_era(st)
+        self.send_json({
+            "series_id": st.get("series_id"),
+            "title": st.get("title"),
+            "current_episode": st.get("current_episode", 1),
+            "timeline_day": st.get("timeline_day", 1),
+            "era": era.get("name"),
+            "era_subtitle": era.get("subtitle"),
+            "character": st.get("character"),
+            "last_cliffhanger": st.get("last_cliffhanger"),
+            "total_episodes": len(st.get("episode_history", [])),
+            "history": st.get("episode_history", [])[-10:],
+        })
+
+    def handle_api_series_list(self):
+        from scripts.series_manager import list_all_series
+        self.send_json({"series": list_all_series()})
+
+    def handle_api_series_next(self, payload: dict):
+        global CREATION_STATE
+        series_id = (payload.get("series_id") or "kane").strip()
+        duration = int(payload.get("duration", 40))
+
+        with CREATION_LOCK:
+            if CREATION_STATE["active"]:
+                return self.send_json({"status": "FAILED", "error": f"Another creation is already running: '{CREATION_STATE['topic']}'"}, 409)
+            CREATION_STATE["active"] = True
+            CREATION_STATE["topic"] = f"Series: {series_id.title()}"
+            CREATION_STATE["step"] = "init"
+            CREATION_STATE["status"] = "running"
+            CREATION_STATE["detail"] = f"Generating next continuous episode for {series_id.title()}..."
+            CREATION_STATE["error"] = None
+            CREATION_STATE["result"] = None
+            CREATION_STATE["stop_requested"] = False
+            CREATION_STATE["deliverable_filename"] = None
+
+        def worker():
+            from scripts.series_pipeline import produce_episode
+            def on_progress(step, status, detail=None):
+                with CREATION_LOCK:
+                    CREATION_STATE["step"] = step
+                    CREATION_STATE["status"] = status
+                    if detail:
+                        CREATION_STATE["detail"] = str(detail)
+
+            try:
+                res = produce_episode(series_id=series_id, target_duration=duration, on_progress=on_progress)
+                with CREATION_LOCK:
+                    CREATION_STATE["result"] = res
+                    CREATION_STATE["active"] = False
+                    if res.get("status") == "SUCCESS":
+                        CREATION_STATE["status"] = "done"
+                        CREATION_STATE["count"] = CREATION_STATE.get("count", 0) + 1
+                        if res.get("video_file"):
+                            CREATION_STATE["deliverable_filename"] = os.path.basename(res["video_file"])
+                        CREATION_STATE["detail"] = f"Episode #{res.get('episode')} produced successfully: '{res.get('title')}'!"
+                    else:
+                        CREATION_STATE["status"] = "failed"
+                        CREATION_STATE["error"] = res.get("error", "Failed to produce episode")
+            except Exception as e:
+                with CREATION_LOCK:
+                    CREATION_STATE["active"] = False
+                    CREATION_STATE["status"] = "failed"
+                    CREATION_STATE["error"] = str(e)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        self.send_json({"status": "STARTED", "series_id": series_id})
 
     def handle_api_get_config(self):
         data = {}

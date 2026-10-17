@@ -340,12 +340,29 @@ def cmd_tunnel(args):
     print(f"  Target: http://localhost:{port}")
     print(f"  Tunnel URL: https://ninad-shorts.loca.lt")
     print("=" * 60)
-    print("Starting secure tunnel... Connects automatically with Vercel!")
-    print("Press Ctrl+C to stop tunnel.")
+    print("Starting secure tunnel... Connects with Vercel / Remote Dashboard!")
+    print("Auto-reconnect is active. Press Ctrl+C to stop tunnel.\n")
+
+    # Clean up any conflicting localtunnel processes holding the port
     try:
-        subprocess.run(["npx", "-y", "localtunnel", "--port", str(port), "--subdomain", "ninad-shorts"])
+        subprocess.run(["pkill", "-f", "localtunnel.*--port"], stderr=subprocess.DEVNULL)
+        time.sleep(1)
+    except Exception:
+        pass
+
+    retry_count = 0
+    try:
+        while True:
+            proc = subprocess.run(["npx", "-y", "localtunnel", "--port", str(port), "--subdomain", "ninad-shorts"])
+            if proc.returncode != 0:
+                retry_count += 1
+                wait_sec = min(2 * retry_count, 8)
+                print(f"\n[Notice] Tunnel disconnected or server busy. Reconnecting in {wait_sec}s (retry #{retry_count})...")
+                time.sleep(wait_sec)
+            else:
+                retry_count = 0
     except KeyboardInterrupt:
-        print("\nTunnel closed.")
+        print("\nTunnel stopped by user.")
 
 
 def cmd_series(args):

@@ -577,7 +577,10 @@
         <span id="engineDot" class="engine-dot"></span>
         <span id="engineText">Checking connection to engine...</span>
       </div>
-      <button type="button" class="btn-engine-settings" onclick="openEngineSettings()">⚙️ Host Settings</button>
+      <div style="display: flex; gap: 8px;">
+        <button id="btnUnlock" type="button" class="btn-engine-settings" style="display: none; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3);" onclick="openTokenModal()">🔑 Unlock Token</button>
+        <button type="button" class="btn-engine-settings" onclick="openEngineSettings()">⚙️ Host Settings</button>
+      </div>
     </div>
 
     <!-- Main Clean Creation Card: Topic Area + Start Button -->
@@ -654,7 +657,12 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       <div>
         <a id="downloadLink" class="download-btn" href="#" download>
           <span>📥</span> Download 1080x1920 Video
-        </a>  <!-- Engine Settings Modal -->
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Engine Settings Modal -->
   <div id="engineModal" class="token-modal">
     <div class="token-box">
       <h3 style="margin-bottom: 8px;">Mac Engine Connection</h3>
@@ -748,6 +756,20 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       if (modal) modal.style.display = 'none';
     }
 
+    function openTokenModal() {
+      const modal = document.getElementById('tokenModal');
+      if (modal) {
+        modal.style.display = 'flex';
+        const field = document.getElementById('tokenField');
+        if (field) field.focus();
+      }
+    }
+
+    function closeTokenModal() {
+      const modal = document.getElementById('tokenModal');
+      if (modal) modal.style.display = 'none';
+    }
+
     async function saveEngineSettings() {
       const hostInput = document.getElementById('engineHostInput');
       const tokenInput = document.getElementById('apiTokenInput');
@@ -777,10 +799,12 @@ e.g. Bhai ye sunkar dimaag hil jayega"
     async function checkConnectionHealth() {
       const dot = document.getElementById('engineDot');
       const text = document.getElementById('engineText');
+      const btnUnlock = document.getElementById('btnUnlock');
       try {
-        const res = await apiFetch('/api/create/status');
+        const res = await apiFetch('/api/create/status', { suppressModal: true });
         if (res.ok) {
           if (dot) { dot.className = 'engine-dot connected'; }
+          if (btnUnlock) { btnUnlock.style.display = 'none'; }
           if (text) {
             const hostDisplay = apiBase || window.location.origin;
             text.innerHTML = `<span style="color:#34d399;">Engine Connected</span> <span style="color:#64748b; font-size:12px;">(${hostDisplay})</span>`;
@@ -788,8 +812,9 @@ e.g. Bhai ye sunkar dimaag hil jayega"
           return true;
         } else if (res.status === 401) {
           if (dot) { dot.className = 'engine-dot'; }
+          if (btnUnlock) { btnUnlock.style.display = 'inline-flex'; }
           if (text) {
-            text.innerHTML = `<span style="color:#fbbf24;">Engine Online (Authentication Required)</span>`;
+            text.innerHTML = `<span style="color:#fbbf24;">Engine Online (Click Unlock to enter token)</span>`;
           }
           return false;
         } else {
@@ -797,6 +822,7 @@ e.g. Bhai ye sunkar dimaag hil jayega"
         }
       } catch (err) {
         if (dot) { dot.className = 'engine-dot disconnected'; }
+        if (btnUnlock) { btnUnlock.style.display = 'none'; }
         if (text) {
           text.innerHTML = `<span style="color:#f87171;">Engine Offline</span> <span style="color:#94a3b8; font-size:12px;">(Run 'python scripts/shortsctl.py tunnel' on Mac)</span>`;
         }
@@ -810,8 +836,8 @@ e.g. Bhai ye sunkar dimaag hil jayega"
       options.headers = headers;
       options.credentials = 'include';
       const res = await fetch(url, options);
-      if (res.status === 401) {
-        document.getElementById('tokenModal').style.display = 'flex';
+      if (res.status === 401 && !options.suppressModal) {
+        openTokenModal();
       }
       return res;
     }
